@@ -27,8 +27,6 @@ def calculate_bbox_around_point(lat, lon, radius_km):
 
 def format_bbox_for_api(bbox_dict):
     """Convert bbox dictionary to API format - FIXED ORDER"""
-    # The GDACS bbox format is: lon_min, lon_max, lat_min, lat_max
-    # But MarinePlan API expects: lat_min,lon_min;lat_max,lon_max
     return f"{bbox_dict['lat_min']},{bbox_dict['lon_min']};{bbox_dict['lat_max']},{bbox_dict['lon_max']}"
 
 def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
@@ -38,9 +36,8 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
     if not api_key:
         api_key = os.getenv('MARINEPLAN_API_KEY')
         if not api_key:
-            api_key = '3104c7b9-fde7-44e9-abe2-e4676f0be304'
+            api_key = '<YOUR MARINE API KEY>'
     
-    # Format bbox for API - CORRECTED
     api_bbox_format = format_bbox_for_api(bbox_dict)
     
     url = "https://ais.marineplan.com/location/2/locations.json"
@@ -48,7 +45,7 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
         'area': api_bbox_format,
         'moving': 1,
         'maxage': 1800,
-        'source': 'AIS',  # FIXED: Use 'AIS' not 'ANY'
+        'source': 'AIS',
         'key': api_key
     }
     
