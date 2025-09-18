@@ -1,0 +1,552 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f5f7fa;
+    color: #333;
+    overflow: hidden;
+}
+
+/* Map */
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Control Panel */
+.control-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 320px;
+    background: white;
+    border: 1px solid #ddd;
+    z-index: 1000;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.control-panel.collapsed {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #ddd;
+    background: #f8f9fa;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a202c;
+}
+
+.logo i {
+    color: #2563eb;
+    font-size: 18px;
+}
+
+.toggle-btn {
+    background: white;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.toggle-btn:hover {
+    background: #f8f9fa;
+    border-color: #bbb;
+    color: #333;
+}
+
+.panel-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Form */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #374151;
+    font-size: 14px;
+}
+
+.form-group select,
+.form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    background: white;
+    transition: border-color 0.2s;
+    border-radius: 4px;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+.btn-load {
+    width: 100%;
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    border-radius: 4px;
+}
+
+.btn-load:hover {
+    background: #1d4ed8;
+}
+
+.btn-load:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Vessel List */
+.vessel-list {
+    margin-top: 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.vessel-header {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+}
+
+.vessel-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.vessel-item:hover {
+    background: #f8f9fa;
+}
+
+.vessel-item.selected {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+}
+
+.vessel-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    flex-shrink: 0;
+    border-radius: 50%;
+}
+
+.vessel-icon.cargo_ship {
+    background: #2563eb;
+}
+
+.vessel-icon.tanker {
+    background: #dc2626;
+}
+
+.vessel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.vessel-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: #1a202c;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vessel-meta {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.vessel-type {
+    background: #e5e7eb;
+    color: #666;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 3px;
+}
+
+.vessel-flag {
+    font-size: 12px;
+    color: #666;
+}
+
+.vessel-speed {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Detail Panel */
+.detail-panel {
+    position: absolute;
+    top: 20px;
+    right: -380px;
+    width: 360px;
+    background: white;
+    border: 1px solid #ddd;
+    z-index: 1000;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.detail-panel.active {
+    right: 20px;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #ddd;
+    background: #f8f9fa;
+}
+
+.detail-title {
+    font-weight: 600;
+    color: #1a202c;
+    font-size: 16px;
+}
+
+.close-btn {
+    background: none;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
+}
+
+.detail-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.vessel-title {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.vessel-title h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1a202c;
+    margin-bottom: 8px;
+}
+
+.type-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: white;
+    border-radius: 3px;
+}
+
+.type-badge.cargo_ship {
+    background: #2563eb;
+}
+
+.type-badge.tanker {
+    background: #dc2626;
+}
+
+.detail-section {
+    margin-bottom: 24px;
+}
+
+.detail-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+}
+
+.value {
+    font-size: 13px;
+    color: #1a202c;
+    font-weight: 500;
+    text-align: right;
+}
+
+/* Map Controls */
+.map-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.map-btn {
+    width: 32px;
+    height: 32px;
+    background: white;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.map-btn:first-child {
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+}
+
+.map-btn:last-child {
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+}
+
+.map-btn:hover {
+    background: #f8f9fa;
+    color: #2563eb;
+}
+
+/* Panel Toggle Button (when collapsed) */
+.panel-toggle {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.panel-toggle:hover {
+    background: #f8f9fa;
+    border-color: #bbb;
+}
+
+.panel-toggle i {
+    color: #2563eb;
+    font-size: 18px;
+}
+
+/* Popup */
+.popup {
+    font-size: 13px;
+    line-height: 1.4;
+    min-width: 180px;
+}
+
+.popup strong {
+    color: #1a202c;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.popup .vessel-type {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 500;
+    color: white;
+    margin-bottom: 4px;
+    border-radius: 2px;
+}
+
+.popup .vessel-type.cargo_ship {
+    background: #2563eb;
+}
+
+.popup .vessel-type.tanker {
+    background: #dc2626;
+}
+
+/* Messages */
+.error-message,
+.no-vessels {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    background: #f8f9fa;
+    margin-top: 12px;
+    border-radius: 4px;
+}
+
+.error-message {
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+}
+
+/* Scrollbars */
+.vessel-list::-webkit-scrollbar,
+.detail-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.vessel-list::-webkit-scrollbar-track,
+.detail-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.vessel-list::-webkit-scrollbar-thumb,
+.detail-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.vessel-list::-webkit-scrollbar-thumb:hover,
+.detail-content::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .control-panel,
+    .detail-panel {
+        width: calc(100vw - 40px);
+        left: 20px;
+    }
+    
+    .detail-panel {
+        right: calc(-100vw - 20px);
+    }
+    
+    .detail-panel.active {
+        right: 20px;
+    }
+    
+    .control-panel.collapsed {
+        width: 0;
+    }
+    
+    .map-controls {
+        bottom: 10px;
+        left: 10px;
+    }
+    
+    .panel-toggle {
+        left: 10px;
+        top: 10px;
+    }
+}
