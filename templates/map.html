@@ -158,18 +158,139 @@
             z-index: 1000;
         }
         
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 5px;
-        }
-        
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
+        /* Enhanced Legend Styles */
+.legend-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.legend-header i {
+    margin-right: 10px;
+    color: #4facfe;
+    font-size: 18px;
+}
+
+.legend-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.legend-section {
+    margin-bottom: 15px;
+}
+
+.legend-section h5 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    padding: 4px 0;
+}
+
+.legend-color {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 2px solid transparent;
+}
+
+.legend-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    font-size: 14px;
+}
+
+.legend-line {
+    width: 20px;
+    height: 4px;
+    background-color: #0066ff;
+    margin-right: 10px;
+    border-radius: 2px;
+}
+
+/* Replace the existing .legend and .legend-toggle styles with these: */
+/* Legend Container - Fixed Positioning */
+.legend-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* Legend Styles */
+.legend {
+    display: block;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    margin-bottom: 10px;
+    max-width: 250px;
+}
+
+/* Legend Toggle Button */
+.legend-toggle button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.legend-toggle button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.legend span {
+    font-size: 13px;
+    color: #555;
+    font-weight: 500;
+}
+
+/* Better popup styling */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+    margin: 8px;
+    line-height: 1.4;
+}
+
+.leaflet-popup-tip {
+    background: #2196F3;
+}
         
         .loading {
             display: none;
@@ -222,25 +343,60 @@
             height: 32px !important;
             align-items: center;
         }
+
+        /* Ship marker styles */
+        .ship-marker-simple {
+    background: transparent !important;
+    border: none !important;
+    width: 20px !important;
+    height: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.ship-marker-simple i {
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.leaflet-marker-icon {
+    transition: transform 0.2s ease;
+}
+
+.leaflet-zoom-animated .leaflet-marker-icon:hover {
+    transform: scale(1.2);
+    z-index: 1000;
+}
+
+        .ship-marker-cargo {
+            background-color: #4CAF50 !important;
+            border-color: #2E7D32 !important;
+        }
+
+        .ship-marker-tanker {
+            background-color: #FF9800 !important;
+            border-color: #F57C00 !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-    <div class="sidebar">
-        <div class="header-container">
-            <div class="header-icon">
-                <i class="fas fa-route"></i>
+        <div class="sidebar">
+            <div class="header-container">
+                <div class="header-icon">
+                    <i class="fas fa-route"></i>
+                </div>
+                <h1>Maritime Route Risk Analysis</h1>
             </div>
-            <h1>Maritime Route Risk Analysis</h1>
-        </div>
-        
-        <div class="form-group">
-            <label for="origin-water-body">Origin - Water Body:</label>
-            <select id="origin-water-body">
-                <option value="">Select Water Body</option>
-            </select>
-        </div>
             
+            <div class="form-group">
+                <label for="origin-water-body">Origin - Water Body:</label>
+                <select id="origin-water-body">
+                    <option value="">Select Water Body</option>
+                </select>
+            </div>
+                
             <div class="form-group">
                 <label for="origin-country">Origin - Country:</label>
                 <select id="origin-country" disabled>
@@ -286,29 +442,85 @@
                 <h3>Route Information</h3>
                 <p id="route-length"></p>
                 <div id="disaster-alerts"></div>
+                <div id="ship-alerts"></div>
             </div>
         </div>
         
         <div class="main-content">
             <div class="map-container">
                 <div id="map"></div>
-                <div class="legend">
-                    <h4>Disaster Alert Levels</h4>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: red;"></div>
-                        <span>Red Alert</span>
+                
+                <!-- Legend Container -->
+                <div class="legend-container">
+                    <!-- Legend -->
+                    <div class="legend">
+                        <div class="legend-header">
+                            <i class="fas fa-map-legend"></i>
+                            <h4>Map Legend</h4>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Disaster Alerts</h5>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #ff4444; border: 2px solid #cc0000;"></div>
+                                <span>Red Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #ff8800; border: 2px solid #cc6600;"></div>
+                                <span>Orange Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #44ff44; border: 2px solid #00cc00;"></div>
+                                <span>Green Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #888888; border: 2px solid #555555;"></div>
+                                <span>Unknown</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Vessel Types</h5>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #2196F3;">
+                                    <i class="fas fa-ship"></i>
+                                </div>
+                                <span>Cargo Ships</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #4CAF50;">
+                                    <i class="fas fa-ship"></i>
+                                </div>
+                                <span>Tankers</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Ports & Route</h5>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #4CAF50;">
+                                    <i class="fas fa-circle"></i>
+                                </div>
+                                <span>Origin Port</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #F44336;">
+                                    <i class="fas fa-circle"></i>
+                                </div>
+                                <span>Destination Port</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-line" style="background-color: #0066ff;"></div>
+                                <span>Sea Route</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: orange;"></div>
-                        <span>Orange Alert</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: green;"></div>
-                        <span>Green Alert</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: gray;"></div>
-                        <span>Unknown</span>
+                    
+                    <!-- Legend Toggle Button -->
+                    <div class="legend-toggle">
+                        <button id="legend-toggle-btn" title="Hide Legend">
+                            <i class="fas fa-layer-group"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -318,23 +530,52 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
         // Initialize map
-        const map = L.map('map').setView([20, 0], 2);
+        const map = L.map('map', {
+        center: [20, 0],
+        zoom: 2,
+        minZoom: 2,
+        maxZoom: 18,
+        worldCopyJump: true
+    });
         
         // Add base layers
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-        
-        // Add ocean base layer
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri Ocean Base',
-            name: 'Ocean Base'
-        }).addTo(map);
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19  // Set maximum zoom level
+}).addTo(map);
+
+// Add multiple backup tile providers
+const tileLayers = {
+    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    }),
+    "OpenSeaMap": L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+        attribution: 'Map data: &copy; OpenSeaMap contributors',
+        maxZoom: 18
+    }),
+    "ESRI Ocean": L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri Ocean Base',
+        maxZoom: 16
+    }),
+    "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
+        maxZoom: 20
+    })
+};
+    tileLayers["OpenStreetMap"].addTo(map);
+    // Add layer control
+    L.control.layers(tileLayers, null, {position: 'topright'}).addTo(map);
+
+    // Set view with bounds to prevent extreme zoom
+    map.options.minZoom = 2;
+    map.options.maxZoom = 18;
         
         // Global variables
         let routeLayer = null;
         let disasterMarkers = [];
         let portMarkers = [];
+        let shipMarkers = [];
         
         // Alert color mapping
         const alertColorMap = {
@@ -512,11 +753,171 @@
                 }
             });
             portMarkers = [];
+
+            shipMarkers.forEach(marker => {
+                if (map.hasLayer(marker)) {
+                    map.removeLayer(marker);
+                }
+            });
+            shipMarkers = [];
             
             // Clear stored route bounds
             window.currentRouteBounds = null;
         }
 
+        // Function to create ship markers
+// Function to create ship markers
+function createShipMarker(ship) {
+    const vesselType = ship.vesselType || 'UNKNOWN';
+    
+    // Correct color assignment - CARGO_SHIP = BLUE, TANKER = ORANGE
+    let shipColor = '#2196F3'; // Default blue for cargo ships
+    
+    if (vesselType === 'TANKER') {
+        shipColor = '#FF9800'; // Orange for tankers
+    }
+    
+    // Simpler icon without background - just the ship symbol
+    const shipIcon = L.divIcon({
+        className: 'ship-marker-simple',
+        html: `<i class="fas fa-ship" style="font-size: 14px; color: ${shipColor};"></i>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+        popupAnchor: [0, -10]
+    });
+    
+    // Format the data for display
+    const formattedSpeed = ship.speedKmh ? `${ship.speedKmh} km/h` : 'N/A';
+    const formattedBearing = ship.bearingDeg ? `${ship.bearingDeg}°` : 'N/A';
+    const formattedDraught = ship.draughtMeters ? `${ship.draughtMeters}m` : 'N/A';
+    const formattedDimensions = ship.lengthMeters && ship.widthMeters ? 
+        `${ship.lengthMeters}m × ${ship.widthMeters}m` : 'N/A';
+    const formattedPosition = ship.point ? 
+        `${ship.point.latitude?.toFixed(4) || 'N/A'}, ${ship.point.longitude?.toFixed(4) || 'N/A'}` : 'N/A';
+    
+    const popupHtml = `
+        <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
+                    ${ship.boatName || 'Unknown Vessel'}
+                </h3>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
+                    ${ship.vesselType || 'Unknown Type'}
+                </p>
+            </div>
+            
+            <!-- Basic Info Section -->
+            <div style="margin-bottom: 12px;">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-fingerprint"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
+                        <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-flag"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Flag</div>
+                        <div style="color: #2d3748; font-size: 13px;">${ship.country || 'N/A'}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
+                        <div style="color: #2d3748; font-size: 13px;">${ship.destinationName || 'Unknown'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Position & Dimensions Section -->
+            <div style="margin-bottom: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-location-dot"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Position</div>
+                        <div style="color: #2d3748; font-size: 13px;">${formattedPosition}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-ruler-combined"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
+                        <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation Data Section -->
+            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-gauge-high"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Speed</div>
+                        <div style="color: #2d3748; font-size: 13px;">${formattedSpeed}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-compass"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Bearing</div>
+                        <div style="color: #2d3748; font-size: 13px;">${formattedBearing}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
+                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                        <i class="fas fa-water"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Draught</div>
+                        <div style="color: #2d3748; font-size: 13px;">${formattedDraught}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Info (if available) -->
+            ${ship.imo ? `
+            <div style="margin-top: 10px; padding: 8px; background: #e8f5e8; border-radius: 4px; border-left: 3px solid #4CAF50;">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
+                    <div style="color: #4CAF50; font-size: 12px; width: 20px;">
+                        <i class="fas fa-id-card"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">IMO Number</div>
+                        <div style="color: #2d3748; font-size: 13px;">${ship.imo}</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+
+    const marker = L.marker([ship.point.latitude, ship.point.longitude], {icon: shipIcon})
+        .bindPopup(popupHtml);
+
+    return marker;
+}
         // Function to create disaster markers with proper styling
         function createDisasterMarker(disaster) {
             const alertLevel = disaster.alert_level || 'Unknown';
@@ -565,7 +966,7 @@
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #f0fff4; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                                <div style="background: #f0fff4; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
                             <span style="font-size: 16px;">📅</span>
                         </div>
                         <div>
@@ -701,6 +1102,87 @@
                 }
             });
         }
+
+        // Function to add ship markers
+        // Function to add ship markers
+function addShipMarkers(shipsData, routeBounds = null) {
+    if (!shipsData) return;
+    
+    let totalShips = 0;
+    
+    // Process ships data organized by disaster GDACS ID
+    Object.keys(shipsData).forEach(gdacsId => {
+        const disasterShips = shipsData[gdacsId];
+        if (disasterShips && disasterShips.ships) {
+            disasterShips.ships.forEach(ship => {
+                if (ship.point && ship.point.latitude && ship.point.longitude) {
+                    // Use original coordinates, don't adjust for route bounds
+                    const lat = ship.point.latitude;
+                    const lon = ship.point.longitude;
+                    
+                    const marker = createShipMarker(ship);
+                    marker.addTo(map);
+                    shipMarkers.push(marker);
+                    totalShips++;
+                }
+            });
+        }
+    });
+    
+    // Update ship alerts in sidebar
+    const shipAlerts = document.getElementById('ship-alerts');
+    if (totalShips > 0) {
+        shipAlerts.innerHTML = `
+            <div style="margin-top: 15px; padding: 10px; border-radius: 5px; background-color: #e3f2fd; border-left: 5px solid #2196F3; color: #1565C0;">
+                <strong>Ships Tracked:</strong> ${totalShips} vessel(s) detected in disaster areas
+            </div>
+        `;
+    } else {
+        shipAlerts.innerHTML = `
+            <div style="margin-top: 15px; padding: 10px; border-radius: 5px; background-color: #fff3cd; border-left: 5px solid #ffc107; color: #856404;">
+                <strong>No Ships Found:</strong> No vessels detected in disaster areas
+            </div>
+        `;
+    }
+}
+
+function toggleLegend() {
+            const legend = document.querySelector('.legend');
+            const button = document.getElementById('legend-toggle-btn');
+            
+            if (legend.style.display === 'none') {
+                legend.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-layer-group"></i>';
+                button.title = 'Hide Legend';
+            } else {
+                legend.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-eye"></i>';
+                button.title = 'Show Legend';
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            const legend = document.querySelector('.legend');
+            const toggleButton = document.getElementById('legend-toggle-btn');
+            
+            // Ensure legend is initially visible
+            if (!legend.style.display) {
+                legend.style.display = 'block';
+            }
+            
+            // Set initial button state
+            if (legend.style.display === 'none') {
+                toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+                toggleButton.title = 'Show Legend';
+            } else {
+                toggleButton.innerHTML = '<i class="fas fa-layer-group"></i>';
+                toggleButton.title = 'Hide Legend';
+            }
+            
+            // Add click event listener to the button
+            toggleButton.addEventListener('click', toggleLegend);
+        });
         
         // Calculate route button click
         document.getElementById('calculate-route').addEventListener('click', function() {
@@ -788,153 +1270,159 @@
                 
                 // Add origin and destination markers with proper icons
                 function createPortPopup(portData, isOrigin = true) {
-            const portType = isOrigin ? 'Origin' : 'Destination';
-            
-            return `
-                <div style="font-family: Arial, sans-serif; min-width: 250px;">
-                    <div style="background: linear-gradient(135deg, ${isOrigin ? '#4CAF50' : '#F44336'} 0%, ${isOrigin ? '#2E7D32' : '#C62828'} 100%); 
-                                color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
-                        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">${portType} Port</h3>
-                    </div>
+                    const portType = isOrigin ? 'Origin' : 'Destination';
                     
-                    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #e3f2fd; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">🏗️</span>
+                    return `
+                        <div style="font-family: Arial, sans-serif; min-width: 250px;">
+                            <div style="background: linear-gradient(135deg, ${isOrigin ? '#4CAF50' : '#F44336'} 0%, ${isOrigin ? '#2E7D32' : '#C62828'} 100%); 
+                                        color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
+                                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">${portType} Port</h3>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                                <div style="background: #e3f2fd; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 16px;">🏗️</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Port Name</div>
+                                    <div style="color: #2d3748; font-size: 14px;">${portData.name || 'N/A'}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                                <div style="background: #e8f5e9; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 16px;">🏷️</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Port Code</div>
+                                    <div style="color: #2d3748; font-size: 14px;">${portData.code || 'N/A'}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                                <div style="background: #fff3e0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 16px;">📏</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Harbor Size</div>
+                                    <div style="color: #2d3748; font-size: 14px;">${portData.harbor_size || 'N/A'}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                                <div style="background: #e8eaf6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 16px;">⚓</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Harbor Type</div>
+                                    <div style="color: #2d3748; font-size: 14px;">${portData.harbor_type || 'N/A'}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                                <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 16px;">📍</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
+                                    <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Port Name</div>
-                            <div style="color: #2d3748; font-size: 14px;">${portData.name || 'N/A'}</div>
-                        </div>
-                    </div>
+                    `;
+                }        
+                
+                // Add origin and destination markers with proper icons
+                if (data.origin && data.origin.lat && data.origin.lon) {
+                    const [adjOriginLat, adjOriginLon] = getOptimalDisasterPosition(
+                        data.origin.lat, data.origin.lon, window.currentRouteBounds
+                    );
                     
-                    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #e8f5e9; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">📋</span>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Port Code</div>
-                            <div style="color: #2d3748; font-size: 14px;">${portData.code || 'N/A'}</div>
-                        </div>
-                    </div>
+                    const originIcon = L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
                     
-                    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #fff3e0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">📏</span>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Harbor Size</div>
-                            <div style="color: #2d3748; font-size: 14px;">${portData.harbor_size || 'N/A'}</div>
-                        </div>
-                    </div>
+                    const originMarker = L.marker([adjOriginLat, adjOriginLon], {icon: originIcon})
+                        .addTo(map)
+                        .bindPopup(createPortPopup({
+                            name: data.origin.name,
+                            code: data.origin.port_code || data.origin.code,
+                            harbor_size: data.origin.harbor_size,
+                            harbor_type: data.origin.harbor_type,
+                            lat: data.origin.lat,
+                            lon: data.origin.lon
+                        }, true));
                     
-                    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #e8eaf6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">⚓</span>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Harbor Type</div>
-                            <div style="color: #2d3748; font-size: 14px;">${portData.harbor_type || 'N/A'}</div>
-                        </div>
-                    </div>
+                    portMarkers.push(originMarker);
+                }
+                
+                if (data.destination && data.destination.lat && data.destination.lon) {
+                    const [adjDestLat, adjDestLon] = getOptimalDisasterPosition(
+                        data.destination.lat, data.destination.lon, window.currentRouteBounds
+                    );
                     
-                    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                        <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">📍</span>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
-                            <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }        
-        // Add origin and destination markers with proper icons
-        if (data.origin && data.origin.lat && data.origin.lon) {
-            const [adjOriginLat, adjOriginLon] = getOptimalDisasterPosition(
-                data.origin.lat, data.origin.lon, window.currentRouteBounds
-            );
-            
-            const originIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
+                    const destIcon = L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
+                    
+                    const destMarker = L.marker([adjDestLat, adjDestLon], {icon: destIcon})
+                        .addTo(map)
+                        .bindPopup(createPortPopup({
+                            name: data.destination.name,
+                            code: data.destination.port_code || data.destination.code,
+                            harbor_size: data.destination.harbor_size,
+                            harbor_type: data.destination.harbor_type,
+                            lat: data.destination.lat,
+                            lon: data.destination.lon
+                        }, false));
+                    
+                    portMarkers.push(destMarker);
+                }
+                
+                // Add all disaster markers with route bounds context
+                if (data.origin && data.origin.disasters) {
+                    addDisasterMarkers(data.origin.disasters, window.currentRouteBounds);
+                }
+                if (data.destination && data.destination.disasters) {
+                    addDisasterMarkers(data.destination.disasters, window.currentRouteBounds);
+                }
+                if (data.route && data.route.disasters) {
+                    addDisasterMarkers(data.route.disasters, window.currentRouteBounds);
+                }
+                
+                // Add ship markers if available
+                if (data.ships) {
+                    addShipMarkers(data.ships, window.currentRouteBounds);
+                }
+                
+                // If no route coordinates but we have port coordinates, fit bounds to show both ports
+                if ((!data.route.coordinates || data.route.coordinates.length === 0) && 
+                    data.origin && data.destination && data.origin.lat && data.origin.lon && 
+                    data.destination.lat && data.destination.lon) {
+                    
+                    const bounds = L.latLngBounds([
+                        [data.origin.lat, data.origin.lon],
+                        [data.destination.lat, data.destination.lon]
+                    ]);
+                    map.fitBounds(bounds, {padding: [50, 50]});
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').style.display = 'none';
+                alert('Failed to calculate route. Please try again.');
             });
-            
-            const originMarker = L.marker([adjOriginLat, adjOriginLon], {icon: originIcon})
-                .addTo(map)
-                .bindPopup(createPortPopup({
-                    name: data.origin.name,
-                    code: data.origin.port_code || data.origin.code,
-                    harbor_size: data.origin.harbor_size,
-                    harbor_type: data.origin.harbor_type,
-                    lat: data.origin.lat,
-                    lon: data.origin.lon
-                }, true));
-            
-            portMarkers.push(originMarker);
-        }
-        
-        if (data.destination && data.destination.lat && data.destination.lon) {
-            const [adjDestLat, adjDestLon] = getOptimalDisasterPosition(
-                data.destination.lat, data.destination.lon, window.currentRouteBounds
-            );
-            
-            const destIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
-            
-            const destMarker = L.marker([adjDestLat, adjDestLon], {icon: destIcon})
-                .addTo(map)
-                .bindPopup(createPortPopup({
-                    name: data.destination.name,
-                    code: data.destination.port_code || data.destination.code,
-                    harbor_size: data.destination.harbor_size,
-                    harbor_type: data.destination.harbor_type,
-                    lat: data.destination.lat,
-                    lon: data.destination.lon
-                }, false));
-            
-            portMarkers.push(destMarker);
-        }
-        
-        // Add all disaster markers with route bounds context
-        if (data.origin && data.origin.disasters) {
-            addDisasterMarkers(data.origin.disasters, window.currentRouteBounds);
-        }
-        if (data.destination && data.destination.disasters) {
-            addDisasterMarkers(data.destination.disasters, window.currentRouteBounds);
-        }
-        if (data.route && data.route.disasters) {
-            addDisasterMarkers(data.route.disasters, window.currentRouteBounds);
-        }
-        
-        // If no route coordinates but we have port coordinates, fit bounds to show both ports
-        if ((!data.route.coordinates || data.route.coordinates.length === 0) && 
-            data.origin && data.destination && data.origin.lat && data.origin.lon && 
-            data.destination.lat && data.destination.lon) {
-            
-            const bounds = L.latLngBounds([
-                [data.origin.lat, data.origin.lon],
-                [data.destination.lat, data.destination.lon]
-            ]);
-            map.fitBounds(bounds, {padding: [50, 50]});
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('loading').style.display = 'none';
-        alert('Failed to calculate route. Please try again.');
-    });
-});
+        });
     </script>
 </body>
 </html>
