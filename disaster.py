@@ -2,6 +2,7 @@ import requests
 import xml.etree.ElementTree as ET
 from math import radians, sin, cos, sqrt, atan2
 from config import Config
+from ships import get_ships_for_disasters
 
 # Namespace handling for XML parsing
 namespaces = {
@@ -178,3 +179,17 @@ def get_events_along_route(route_coords, events=None, threshold_km=500):
                     break
     
     return route_events
+
+def get_disasters_with_ships(disasters, api_key=None):
+    """
+    Get disaster information enriched with ship data for disasters that have bounding boxes
+    
+    Args:
+        disasters: List of disaster events
+        api_key: MarinePlan API key
+    
+    Returns:
+        Tuple of (disasters, disaster_ships_mapping)
+    """
+    disaster_ships = get_ships_for_disasters(disasters, api_key)
+    return disasters, disaster_ships
