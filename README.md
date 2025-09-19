@@ -30,10 +30,10 @@ A standalone web application for real-time vessel tracking across predefined oce
 *Real-time vessel monitoring with interactive map*
 
 #### Features
-- Interactive satellite map view
-- Region-based vessel filtering
-- Cargo ship and tanker identification
-- Comprehensive vessel details
+- Interactive satellite map view.
+- Region-based vessel filtering.
+- Cargo ship and tanker identification.
+- Comprehensive vessel details.
 
 #### Quick Start
 ```bash
@@ -62,52 +62,32 @@ The main application - a comprehensive route planning system with integrated dis
 ### Core Features
 
 **Interactive Route Planning**
-- Port selection organized by water body and country
-- Calculated sea route visualization
-- Distance and travel metrics
+- Port selection organized by water body and country.
+- Calculated sea route visualization.
+- Distance and travel metrics.
 
 **Real-Time Disaster Monitoring**
-- GDACS integration for global disaster events
-- Multi-category disaster types (earthquakes, cyclones, floods, volcanoes, droughts, wildfires)
-- Color-coded alert levels (Red, Orange, Green)
-- Proximity-based risk assessment
+- GDACS integration for global disaster events.
+- Multi-category disaster types (earthquakes, cyclones, floods, volcanoes, droughts, wildfires).
+- Color-coded alert levels (Red, Orange, Green).
+- Proximity-based risk assessment.
 
 **Vessel Tracking Integration**
-- AIS data via MarinePlan API
-- Ships tracked in disaster-affected areas
-- Detailed vessel information (MMSI, flag, destination, specifications)
+- AIS data via MarinePlan API.
+- Ships tracked in disaster-affected areas.
+- Detailed vessel information (MMSI, flag, destination, specifications).
 
 **Risk Analysis**
-- Origin, destination, and route-based assessments
-- Configurable proximity thresholds
-- Visual risk indicators and comprehensive reporting
-
-### Technology Stack
-
-**Backend**
-- Flask web framework
-- pandas for data processing
-- searoute library for maritime routing
-- requests for API integration
-- lxml for XML processing
-
-**Frontend**
-- Leaflet.js interactive mapping
-- Multiple tile layer providers
-- Responsive CSS design
-- AJAX for asynchronous loading
-
-**External Integrations**
-- GDACS RSS feed for disaster data
-- MarinePlan AIS for vessel tracking
-- Multiple geospatial service providers
+- Origin, destination, and route-based assessments.
+- Configurable proximity thresholds.
+- Visual risk indicators and comprehensive reporting.
 
 ## Installation
 
 ### Prerequisites
 - Python 3.8+
-- pip package manager
 - MarinePlan API key
+- WPI Dataset
 
 ### Setup Process
 
@@ -148,10 +128,10 @@ Key settings in `config.py`:
 ## Usage Workflow
 
 ### Route Planning Process
-1. Select origin port (water body → country → specific port)
-2. Select destination port using same hierarchy
-3. Calculate route and view risk assessment
-4. Review disaster alerts and vessel information
+1. Select origin port (water body → country → specific port).
+2. Select destination port using same hierarchy.
+3. Calculate route and view risk assessment.
+4. Review disaster alerts and vessel information.
 
 ## Data Sources
 - GDACS (Global Disaster Alert and Coordination System)
@@ -194,19 +174,19 @@ Maritime-Route-Risk-Analysis/
 ### Common Issues
 
 **Route Calculation Failures**
-- Verify port codes in the data
-- Check sea route accessibility
-- Confirm internet connectivity
+- Verify port codes in the data.
+- Check sea route accessibility.
+- Confirm internet connectivity.
 
 **Missing Disaster Data**
-- Test GDACS RSS feed access
-- Validate XML parsing logic
-- Review proximity thresholds
+- Test GDACS RSS feed access.
+- Validate XML parsing logic.
+- Review proximity thresholds.
 
 **Vessel Data Problems**
-- Confirm API key configuration
-- Check rate limits and quotas
-- Verify coordinate formats
+- Confirm API key configuration.
+- Check rate limits and quotas.
+- Verify coordinate formats.
 
 ## 📝 Contact and License
 
@@ -215,7 +195,7 @@ For any feedbacks or suggestions:
 - **Email**: <vishaldb11@gmail.com>
 
 This project uses open data sources. Please ensure compliance with the following when forking or modifying:
-- MarinePlan API usage policies and limits
-- GDACS RSS feed usage terms
-- National Geospatial-Intelligence Agency's WPI data licensing terms
+- MarinePlan API usage policies and limits.
+- GDACS RSS feed usage terms.
+- National Geospatial-Intelligence Agency's WPI data licensing terms.
 
