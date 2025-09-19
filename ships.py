@@ -70,8 +70,8 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
         # Filter reports for relevant vessel types and valid coordinates
         filtered_reports = []
         for report in data.get('reports', []):
-            # Filter by vessel type
-            if report.get('vesselType') not in ['CARGO_SHIP', 'TANKER']:
+            vessel_type = report.get('vesselType')
+            if vessel_type not in ['CARGO_SHIP', 'TANKER']:
                 continue
                 
             point = report.get('point', {})
@@ -79,22 +79,22 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
             if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
                 continue
             
-        filtered_report = {
-            'boatName': report.get('boatName'),
-            'mmsi': report.get('mmsi'),
-            'country': report.get('country'),
-            'vesselType': report.get('vesselType'),
-            'point': point,
-            'destinationName': report.get('destinationName', '').upper(),
-            'boundingBox': report.get('boundingBox'),
-            'speedKmh': report.get('speedKmh'),
-            'bearingDeg': report.get('bearingDeg'),
-            'draughtMeters': report.get('draughtMeters'),
-            'lengthMeters': report.get('lengthMeters'),
-            'widthMeters': report.get('widthMeters'),
-            'imo': report.get('imo')
-        }
-        filtered_reports.append(filtered_report)
+            filtered_report = {
+                'boatName': report.get('boatName', '').upper(),
+                'mmsi': report.get('mmsi'),
+                'country': report.get('country'),
+                'vesselType': vessel_type,
+                'point': point,
+                'destinationName': report.get('destinationName', '').upper(),
+                'boundingBox': report.get('boundingBox'),
+                'speedKmh': report.get('speedKmh'),
+                'bearingDeg': report.get('bearingDeg'),
+                'draughtMeters': report.get('draughtMeters'),
+                'lengthMeters': report.get('lengthMeters'),
+                'widthMeters': report.get('widthMeters'),
+                'imo': report.get('imo')
+            }
+            filtered_reports.append(filtered_report)
         
         return filtered_reports
         
