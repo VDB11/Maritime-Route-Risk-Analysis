@@ -1,6 +1,6 @@
 # Maritime Analysis Toolkit
 
-A collection of maritime applications and tools for port data processing, vessel tracking, and route risk analysis.
+The Maritime Route Risk Analysis and Vessel Tracker project is an integrated platform designed to enhance maritime safety and operational efficiency through real-time vessel monitoring and comprehensive risk assessment. This system combines two powerful applications that work together and provide users with critical information for decision making in maritime operations.
 
 ## Project Components
 
