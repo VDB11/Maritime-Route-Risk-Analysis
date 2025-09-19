@@ -26,7 +26,6 @@ def calculate_bbox_around_point(lat, lon, radius_km):
     return f"{min_lat},{min_lon};{max_lat},{max_lon}"
 
 def format_bbox_for_api(bbox_dict):
-    """Convert bbox dictionary to API format - FIXED ORDER"""
     return f"{bbox_dict['lat_min']},{bbox_dict['lon_min']};{bbox_dict['lat_max']},{bbox_dict['lon_max']}"
 
 def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
