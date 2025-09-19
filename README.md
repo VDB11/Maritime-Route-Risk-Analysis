@@ -24,6 +24,11 @@ The script generates `port_details.csv` with standardized columns including port
 
 A standalone web application for real-time vessel tracking across predefined ocean regions.
 
+## Ship Tracker Interface
+
+![Ship Tracking Dashboard](./images/ship-tracker.png)
+*Real-time vessel monitoring with interactive map*
+
 #### Features
 - Interactive satellite map view
 - Region-based vessel filtering
@@ -39,6 +44,37 @@ Navigate to `http://localhost:5000` and select an ocean region to view vessels.
 ### 3. Maritime Route Risk Analysis System
 
 The main application - a comprehensive route planning system with integrated disaster monitoring and risk assessment.
+
+## Route Risk Interface
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="./images/route-event.png" width="300" alt="Route Overview">
+        <br>
+        <em>Shipping route and disaster with 415 vessels tracked in event vicinity</em>
+      </td>
+      <td align="center">
+        <img src="./images/event.png" width="300" alt="Event Details">
+        <br>
+        <em>Event details with source information</em>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img src="./images/event-vessel.png" width="300" alt="Vessel Details">
+        <br>
+        <em>Details of vessels present in disaster vicinity</em>
+      </td>
+      <td align="center">
+        <img src="./images/port-detail.png" width="300" alt="Port Details">
+        <br>
+        <em>Port details with CartoDB map setting</em>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ### Core Features
 
