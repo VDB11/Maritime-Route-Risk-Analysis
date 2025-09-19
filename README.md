@@ -47,17 +47,17 @@ The main application - a comprehensive route planning system with integrated dis
 
 # Route Risk Interface
 
+**Shipping route and disaster along the route with 415 vessels tracked in the event vicinity**
 ![Route Risk Dashboard](./images/route-event.png)
-*Shipping route and disaster along the route with 415 vessels tracked in the event vicinity*
 
+**Event details with source**
 ![Route Risk Dashboard](./images/event.png)
-*Event details with source*
 
+**Details of vessels present in the disaster vicinity**
 ![Route Risk Dashboard](./images/event-vessel.png)
-*Details of vessels present in the disaster vicinity*
 
+**Port details of the route chosen with CartoDB map setting**
 ![Route Risk Dashboard](./images/port-detail.png)
-*Port details of the route chosen with CartoDB map setting*
 
 ### Core Features
 
