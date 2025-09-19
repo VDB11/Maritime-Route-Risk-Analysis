@@ -1,10 +1,10 @@
-# Maritime Analysis Toolkit
+# Maritime Route Risk Analysis and Vessel Tracker
 
 The Maritime Route Risk Analysis and Vessel Tracker project is an integrated platform designed to enhance maritime safety and operational efficiency through real-time vessel monitoring and comprehensive risk assessment. This system combines two powerful applications that work together and provide users with critical information for decision making in maritime operations.
 
 ## Project Components
 
-### 1. Port Data Processing Script
+### 1. Port Data Processing Script (data-process)
 
 A utility for converting World Port Index data from the National Geospatial-Intelligence Agency (NGA) into a standardized CSV format.
 
@@ -20,7 +20,7 @@ python process_ports.py UpdatedPub150.csv
 #### Output Format
 The script generates `port_details.csv` with standardized columns including port names, UN/LOCODE identifiers, coordinates, and harbor specifications.
 
-### 2. Marine Vessel Tracker
+### 2. Marine Vessel Tracker (Ship Tracker)
 
 A standalone web application for real-time vessel tracking across predefined ocean regions.
 
