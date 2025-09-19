@@ -45,14 +45,17 @@ Navigate to `http://localhost:5000` and select an ocean region to view vessels.
 
 The main application - a comprehensive route planning system with integrated disaster monitoring and risk assessment.
 
-## Route Risk Interface
+# Route Risk Interface
 
 ![Route Risk Dashboard](./images/route-event.png)
 *Shipping route and disaster along the route with 415 vessels tracked in the event vicinity*
+
 ![Route Risk Dashboard](./images/event.png)
 *Event details with source*
+
 ![Route Risk Dashboard](./images/event-vessel.png)
 *Details of vessels present in the disaster vicinity*
+
 ![Route Risk Dashboard](./images/port-detail.png)
 *Port details of the route chosen with CartoDB map setting*
 
