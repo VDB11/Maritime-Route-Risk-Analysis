@@ -1,0 +1,31 @@
+{
+    "input_columns": [
+        "OID_",
+        "World Port Index Number", 
+        "Region Name",
+        "Main Port Name",
+        "Alternate Port Name",
+        "UN/LOCODE",
+        "Country Code",
+        "World Water Body",
+        "Harbor Size",
+        "Harbor Type",
+        "Latitude",
+        "Longitude"
+    ],
+    "output_columns": [
+        "oid",
+        "wpi_number",
+        "region_name",
+        "port_name",
+        "alt_name",
+        "port_code",
+        "country_code",
+        "water_body",
+        "harbor_size",
+        "harbor_type",
+        "lat",
+        "lon"
+    ],
+    "output_filename": "port_details.csv"
+}

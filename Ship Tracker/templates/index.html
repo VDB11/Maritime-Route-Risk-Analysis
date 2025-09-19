@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marine Vessel Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Map Container (Full Screen) -->
+    <div id="map"></div>
+
+    <!-- Control Panel Toggle Button (shown when panel is collapsed) -->
+    <button id="panelToggle" class="panel-toggle" style="display: none;">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Control Panel Overlay -->
+    <div class="control-panel">
+        <div class="panel-header">
+            <div class="logo">
+                <i class="fas fa-ship"></i>
+                <span>Marine Vessel Tracker</span>
+            </div>
+            <button id="togglePanel" class="toggle-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="panel-content">
+            <form id="regionForm">
+                <div class="form-group">
+                    <label for="regionSelect">Ocean Region</label>
+                    <select id="regionSelect" name="region">
+                        {% for region in regions %}
+                        <option value="{{ region.name }}">{{ region.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="limitInput">Max Vessels</label>
+                    <input type="number" id="limitInput" name="limit" min="1" value="" placeholder="All vessels (leave blank for no limit)">
+                </div>
+                <button type="submit" class="btn-load">
+                    <i class="fas fa-search"></i>
+                    Load Vessels
+                </button>
+            </form>
+            
+            <div id="vesselData" class="vessel-list"></div>
+        </div>
+    </div>
+
+    <!-- Vessel Details Panel -->
+    <div id="detailPanel" class="detail-panel">
+        <div class="detail-header">
+            <span class="detail-title">Vessel Details</span>
+            <button id="closeDetails" class="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="vesselDetails" class="detail-content"></div>
+    </div>
+
+    <!-- Map Controls -->
+    <div class="map-controls">
+        <button id="zoomIn" class="map-btn">+</button>
+        <button id="zoomOut" class="map-btn">-</button>
+        <button id="resetView" class="map-btn">⌂</button>
+    </div>
+
+    <script>
+        // Initialize map with satellite view
+        var map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community'
+        }).addTo(map);
+
+        // Store markers and vessels data
+        let vesselMarkers = [];
+        let vesselsData = [];
+        let selectedVesselIndex = -1;
+
+        // Create custom ship icon
+        function createShipIcon(type, isSelected = false) {
+            const isTanker = type === 'TANKER';
+            const color = isTanker ? '#e53e3e' : '#3182ce';
+            const size = isSelected ? 32 : 24;
+            const border = isSelected ? '3px solid #f6ad55' : '2px solid #fff';
+            
+            const iconHtml = `
+                <div style="
+                    background: ${color};
+                    width: ${size}px;
+                    height: ${size}px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: ${size * 0.5}px;
+                    border: ${border};
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    cursor: pointer;
+                ">
+                    <i class="fas fa-ship"></i>
+                </div>
+            `;
+            
+            return L.divIcon({
+                html: iconHtml,
+                className: 'ship-marker',
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            });
+        }
+        
+        // Map controls
+        document.getElementById('zoomIn').addEventListener('click', () => map.zoomIn());
+        document.getElementById('zoomOut').addEventListener('click', () => map.zoomOut());
+        document.getElementById('resetView').addEventListener('click', () => map.setView([20, 0], 2));
+        
+        // Toggle panel
+        document.getElementById('togglePanel').addEventListener('click', function() {
+            collapsePanel();
+        });
+        
+        // Show panel when toggle button is clicked
+        document.getElementById('panelToggle').addEventListener('click', function() {
+            expandPanel();
+        });
+        
+        function collapsePanel() {
+            const panel = document.querySelector('.control-panel');
+            panel.classList.add('collapsed');
+            document.getElementById('panelToggle').style.display = 'flex';
+        }
+        
+        function expandPanel() {
+            const panel = document.querySelector('.control-panel');
+            panel.classList.remove('collapsed');
+            document.getElementById('panelToggle').style.display = 'none';
+        }
+        
+        // Close details panel
+        document.getElementById('closeDetails').addEventListener('click', closeDetailsPanel);
+        
+        function closeDetailsPanel() {
+            document.getElementById('detailPanel').classList.remove('active');
+            
+            if (selectedVesselIndex >= 0) {
+                // Remove highlight from marker
+                const icon = createShipIcon(vesselsData[selectedVesselIndex].vesselType, false);
+                vesselMarkers[selectedVesselIndex].setIcon(icon);
+                
+                // Remove highlight from list item
+                const listItem = document.querySelector(`.vessel-item[data-index="${selectedVesselIndex}"]`);
+                if (listItem) listItem.classList.remove('selected');
+                
+                selectedVesselIndex = -1;
+            }
+        }
+        
+        // Form submission
+        document.getElementById('regionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const region = document.getElementById('regionSelect').value;
+            const limit = document.getElementById('limitInput').value;
+            const button = this.querySelector('button');
+            
+            closeDetailsPanel();
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            button.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('region', region);
+            if (limit) formData.append('limit', limit);
+            
+            fetch('/get_vessels', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayVessels(data);
+                button.innerHTML = '<i class="fas fa-search"></i> Load Vessels';
+                button.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                button.innerHTML = '<i class="fas fa-search"></i> Load Vessels';
+                button.disabled = false;
+                showError('Failed to load vessels. Please try again.');
+            });
+        });
+        
+        function showError(message) {
+            document.getElementById('vesselData').innerHTML = 
+                `<div class="error-message">${message}</div>`;
+        }
+        
+        function displayVessels(data) {
+            // Clear previous data
+            vesselMarkers.forEach(marker => map.removeLayer(marker));
+            vesselMarkers = [];
+            vesselsData = [];
+            selectedVesselIndex = -1;
+            closeDetailsPanel();
+            
+            const vesselList = document.getElementById('vesselData');
+            vesselList.innerHTML = '';
+            
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            if (!data.reports || data.reports.length === 0) {
+                vesselList.innerHTML = '<div class="no-vessels">No vessels found</div>';
+                return;
+            }
+            
+            vesselsData = data.reports;
+            
+            // Add header
+            const header = document.createElement('div');
+            header.className = 'vessel-header';
+            header.innerHTML = `<span>Found ${vesselsData.length} vessels</span>`;
+            vesselList.appendChild(header);
+            
+            // Create vessel list and markers
+            vesselsData.forEach((vessel, index) => {
+                // Add marker
+                const marker = L.marker([vessel.point.latitude, vessel.point.longitude], {
+                    icon: createShipIcon(vessel.vesselType)
+                }).addTo(map);
+                
+                marker.vesselIndex = index;
+                vesselMarkers.push(marker);
+                
+                // Popup
+                marker.bindPopup(`
+                    <div class="popup">
+                        <strong>${vessel.boatName || 'Unknown'}</strong><br>
+                        <span class="vessel-type ${vessel.vesselType.toLowerCase()}">${vessel.vesselType}</span><br>
+                        Flag: ${vessel.country || 'Unknown'}<br>
+                        Speed: ${vessel.speedKmh || 'N/A'} km/h
+                    </div>
+                `);
+                
+                marker.on('click', () => selectVessel(index));
+                
+                // Add to list
+                const listItem = document.createElement('div');
+                listItem.className = 'vessel-item';
+                listItem.dataset.index = index;
+                listItem.innerHTML = `
+                    <div class="vessel-icon ${vessel.vesselType.toLowerCase()}">
+                        <i class="fas fa-ship"></i>
+                    </div>
+                    <div class="vessel-info">
+                        <div class="vessel-name">${vessel.boatName || 'Unknown'}</div>
+                        <div class="vessel-meta">
+                            <span class="vessel-type">${vessel.vesselType}</span>
+                            <span class="vessel-flag">${vessel.country || 'Unknown'}</span>
+                        </div>
+                        <div class="vessel-speed">${vessel.speedKmh || 'N/A'} km/h</div>
+                    </div>
+                `;
+                
+                listItem.addEventListener('click', () => selectVessel(index));
+                vesselList.appendChild(listItem);
+            });
+            
+            // Fit map to markers
+            if (vesselMarkers.length > 0) {
+                const group = new L.featureGroup(vesselMarkers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+        
+        function selectVessel(index) {
+            if (selectedVesselIndex === index) {
+                closeDetailsPanel();
+                return;
+            }
+            
+            // Clear previous selection
+            if (selectedVesselIndex >= 0) {
+                const prevIcon = createShipIcon(vesselsData[selectedVesselIndex].vesselType, false);
+                vesselMarkers[selectedVesselIndex].setIcon(prevIcon);
+                
+                const prevItem = document.querySelector(`.vessel-item[data-index="${selectedVesselIndex}"]`);
+                if (prevItem) prevItem.classList.remove('selected');
+            }
+            
+            // Set new selection
+            selectedVesselIndex = index;
+            
+            // Highlight marker
+            const icon = createShipIcon(vesselsData[index].vesselType, true);
+            vesselMarkers[index].setIcon(icon);
+            
+            // Highlight list item
+            const listItem = document.querySelector(`.vessel-item[data-index="${index}"]`);
+            if (listItem) {
+                listItem.classList.add('selected');
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
+            // Show details
+            showVesselDetails(index);
+            
+            // Pan to vessel
+            map.setView(vesselMarkers[index].getLatLng(), Math.max(map.getZoom(), 8));
+        }
+        
+        function showVesselDetails(index) {
+            const vessel = vesselsData[index];
+            const detailPanel = document.getElementById('detailPanel');
+            const detailContent = document.getElementById('vesselDetails');
+            
+            detailContent.innerHTML = `
+                <div class="vessel-title">
+                    <h2>${vessel.boatName || 'Unknown Vessel'}</h2>
+                    <span class="type-badge ${vessel.vesselType.toLowerCase()}">${vessel.vesselType}</span>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Identification</h3>
+                    <div class="detail-row">
+                        <span class="label">MMSI:</span>
+                        <span class="value">${vessel.mmsi || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">IMO:</span>
+                        <span class="value">${vessel.imo || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Flag:</span>
+                        <span class="value">${vessel.country || 'Unknown'}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Position</h3>
+                    <div class="detail-row">
+                        <span class="label">Latitude:</span>
+                        <span class="value">${vessel.point.latitude.toFixed(6)}°</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Longitude:</span>
+                        <span class="value">${vessel.point.longitude.toFixed(6)}°</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Speed:</span>
+                        <span class="value">${vessel.speedKmh || 'N/A'} km/h</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Course:</span>
+                        <span class="value">${vessel.bearingDeg || 'N/A'}°</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Destination:</span>
+                        <span class="value">${vessel.destinationName || 'Not specified'}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Dimensions</h3>
+                    <div class="detail-row">
+                        <span class="label">Length:</span>
+                        <span class="value">${vessel.lengthMeters || 'N/A'} m</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Beam:</span>
+                        <span class="value">${vessel.widthMeters || 'N/A'} m</span>
+                    </div>
+                    <div class='detail-row'>
+                        <span class="label">Draught:</span>
+                        <span class="value">${vessel.draughtMeters || 'N/A'} m</span>
+                    </div>
+                </div>
+            `;
+            
+            detailPanel.classList.add('active');
+        }
+        
+        // Close details when clicking map (but not markers)
+        map.on('click', function(e) {
+            if (!e.originalEvent.target.closest('.ship-marker')) {
+                closeDetailsPanel();
+            }
+        });
+        
+        // Prevent map clicks on panels
+        document.querySelector('.control-panel').addEventListener('click', e => e.stopPropagation());
+        document.querySelector('.detail-panel').addEventListener('click', e => e.stopPropagation());
+        document.querySelector('.panel-toggle').addEventListener('click', e => e.stopPropagation());
+    </script>
+</body>
+</html>
