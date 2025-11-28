@@ -56,6 +56,9 @@ The main application - a comprehensive route planning system with integrated dis
 **Details of vessels present in the disaster vicinity**
 ![Route Risk Dashboard](./images/event-vessel.png)
 
+**Details of port congestion and vessels in the vicinity**
+![Route Risk Dashboard](./images/congestion.png)
+
 **Port details of the route chosen with CartoDB map setting**
 ![Route Risk Dashboard](./images/port-detail.png)
 
