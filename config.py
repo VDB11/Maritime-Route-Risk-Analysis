@@ -23,6 +23,10 @@ class Config:
     SHIP_MAX_AGE = 1800  # 30 minutes in seconds
     SHIP_RADIUS_FALLBACK_KM = 50  # Fallback radius when no ships found in bbox
     SHIP_TYPES_FILTER = ['CARGO_SHIP', 'TANKER']  # Only show these vessel types
+
+    # Port congestion settings
+    PORT_CONGESTION_RADIUS_KM = 2
+    PORT_CONGESTION_THRESHOLD = 10
     
     # Server configuration
     DEBUG = True
