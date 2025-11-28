@@ -124,3 +124,80 @@ def get_ships_for_disasters(disasters, api_key=None):
                 }
     
     return disaster_ships
+
+def get_ships_near_port(port_lat, port_lon, radius_km=None, threshold=None, api_key=None):
+    """
+    Get ships within a radius of a port to detect congestion
+    """
+    if not api_key:
+        api_key = os.getenv('MARINEPLAN_API_KEY')
+        if not api_key:
+            api_key = '<YOUR MARINE API KEY>'
+    
+    if radius_km is None:
+        from config import Config
+        radius_km = Config.PORT_CONGESTION_RADIUS_KM
+    
+    if threshold is None:
+        from config import Config
+        threshold = Config.PORT_CONGESTION_THRESHOLD
+    
+    # Calculate bounding box around port
+    bbox = calculate_bbox_around_point(port_lat, port_lon, radius_km)
+    
+    url = "https://ais.marineplan.com/location/2/locations.json"
+    params = {
+        'area': bbox,
+        'moving': 1,
+        'maxage': 1800,
+        'source': 'AIS',
+        'key': api_key
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Count all ships (not filtered by type for congestion)
+        ship_count = len(data.get('reports', []))
+        
+        # Get ship details for congested ports
+        ships_data = []
+        if ship_count > 0:
+            for report in data.get('reports', []):
+                point = report.get('point', {})
+                # Skip if coordinates are missing or zero
+                if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
+                    continue
+                
+                ship_info = {
+                    'boatName': report.get('boatName', '').upper(),
+                    'mmsi': report.get('mmsi'),
+                    'country': report.get('country'),
+                    'vesselType': report.get('vesselType'),
+                    'point': point,
+                    'destinationName': report.get('destinationName', '').upper(),
+                    'speedKmh': report.get('speedKmh'),
+                    'bearingDeg': report.get('bearingDeg'),
+                    'draughtMeters': report.get('draughtMeters'),
+                    'lengthMeters': report.get('lengthMeters'),
+                    'widthMeters': report.get('widthMeters'),
+                    'imo': report.get('imo')
+                }
+                ships_data.append(ship_info)
+        
+        return {
+            'congested': ship_count > threshold,
+            'ship_count': ship_count,
+            'radius_km': radius_km,
+            'threshold': threshold,
+            'ships': ships_data  # Add ship details
+        }
+        
+    except requests.RequestException as e:
+        print(f"Error fetching port congestion data: {e}")
+        return {'congested': False, 'ship_count': 0, 'error': str(e), 'ships': []}
+    except Exception as e:
+        print(f"Error processing port congestion data: {e}")
+        return {'congested': False, 'ship_count': 0, 'error': str(e), 'ships': []}
