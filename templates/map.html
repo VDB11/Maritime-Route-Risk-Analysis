@@ -356,6 +356,16 @@
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
 }
 
+.congested-port-ship {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
 .ship-marker-simple i {
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
 }
@@ -443,6 +453,7 @@
                 <p id="route-length"></p>
                 <div id="disaster-alerts"></div>
                 <div id="ship-alerts"></div>
+                <div id="congestion-alerts"></div>
             </div>
         </div>
         
@@ -453,68 +464,80 @@
                 <!-- Legend Container -->
                 <div class="legend-container">
                     <!-- Legend -->
-                    <div class="legend">
-                        <div class="legend-header">
-                            <i class="fas fa-map-legend"></i>
-                            <h4>Map Legend</h4>
-                        </div>
-                        
-                        <div class="legend-section">
-                            <h5>Disaster Alerts</h5>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #ff4444; border: 2px solid #cc0000;"></div>
-                                <span>Red Alert</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #ff8800; border: 2px solid #cc6600;"></div>
-                                <span>Orange Alert</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #44ff44; border: 2px solid #00cc00;"></div>
-                                <span>Green Alert</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #888888; border: 2px solid #555555;"></div>
-                                <span>Unknown</span>
-                            </div>
-                        </div>
-                        
-                        <div class="legend-section">
-                            <h5>Vessel Types</h5>
-                            <div class="legend-item">
-                                <div class="legend-icon" style="color: #2196F3;">
-                                    <i class="fas fa-ship"></i>
-                                </div>
-                                <span>Cargo Ships</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-icon" style="color: #4CAF50;">
-                                    <i class="fas fa-ship"></i>
-                                </div>
-                                <span>Tankers</span>
-                            </div>
-                        </div>
-                        
-                        <div class="legend-section">
-                            <h5>Ports & Route</h5>
-                            <div class="legend-item">
-                                <div class="legend-icon" style="color: #4CAF50;">
-                                    <i class="fas fa-circle"></i>
-                                </div>
-                                <span>Origin Port</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-icon" style="color: #F44336;">
-                                    <i class="fas fa-circle"></i>
-                                </div>
-                                <span>Destination Port</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-line" style="background-color: #0066ff;"></div>
-                                <span>Sea Route</span>
-                            </div>
-                        </div>
-                    </div>
+<div class="legend">
+    <div class="legend-header">
+        <i class="fas fa-map-legend"></i>
+        <h4>Map Legend</h4>
+    </div>
+    
+    <div class="legend-section">
+        <h5>Disaster Alerts</h5>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ff4444; border: 2px solid #cc0000;"></div>
+            <span>Red Alert</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ff8800; border: 2px solid #cc6600;"></div>
+            <span>Orange Alert</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #44ff44; border: 2px solid #00cc00;"></div>
+            <span>Green Alert</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #888888; border: 2px solid #555555;"></div>
+            <span>Unknown</span>
+        </div>
+    </div>
+    
+    <div class="legend-section">
+        <h5>Vessel Types</h5>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #2196F3;">
+                <i class="fas fa-ship"></i>
+            </div>
+            <span>Cargo Ships</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #FF9800;">
+                <i class="fas fa-ship"></i>
+            </div>
+            <span>Tankers</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #FF0000;">
+                <i class="fas fa-anchor"></i>
+            </div>
+            <span>Congested Port Ships</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #2196F3;">
+                <i class="fas fa-anchor"></i>
+            </div>
+            <span>Normal Port Ships</span>
+        </div>
+    </div>
+    
+    <div class="legend-section">
+        <h5>Ports & Route</h5>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #4CAF50;">
+                <i class="fas fa-circle"></i>
+            </div>
+            <span>Origin Port</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon" style="color: #F44336;">
+                <i class="fas fa-circle"></i>
+            </div>
+            <span>Destination Port</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background-color: #0066ff;"></div>
+            <span>Sea Route</span>
+        </div>
+    </div>
+</div>
                     
                     <!-- Legend Toggle Button -->
                     <div class="legend-toggle">
@@ -1104,7 +1127,6 @@ function createShipMarker(ship) {
         }
 
         // Function to add ship markers
-        // Function to add ship markers
 function addShipMarkers(shipsData, routeBounds = null) {
     if (!shipsData) return;
     
@@ -1146,6 +1168,78 @@ function addShipMarkers(shipsData, routeBounds = null) {
     }
 }
 
+// MOVE THIS FUNCTION OUTSIDE - place it here (after addShipMarkers but before the route calculation)
+function displayCongestionAlerts(originData, destData) {
+    const congestionAlerts = document.getElementById('congestion-alerts');
+    congestionAlerts.innerHTML = '';
+    
+    if (originData.congestion && originData.congestion.congested) {
+        const alert = document.createElement('div');
+        alert.className = 'alert-box';
+        alert.style.backgroundColor = '#fff3cd';
+        alert.style.borderLeftColor = '#ffc107';
+        alert.innerHTML = `<strong>Port Congestion!</strong> ${originData.name} has ${originData.congestion.ship_count} ships within ${originData.congestion.radius_km}km`;
+        congestionAlerts.appendChild(alert);
+    }
+    
+    if (destData.congestion && destData.congestion.congested) {
+        const alert = document.createElement('div');
+        alert.className = 'alert-box';
+        alert.style.backgroundColor = '#fff3cd';
+        alert.style.borderLeftColor = '#ffc107';
+        alert.innerHTML = `<strong>Port Congestion!</strong> ${destData.name} has ${destData.congestion.ship_count} ships within ${destData.congestion.radius_km}km`;
+        congestionAlerts.appendChild(alert);
+    }
+}
+
+// Function to add congested port ships to map
+function addCongestedPortShips(originData, destData) {
+    // Add origin port ships (show even if not congested)
+    if (originData.congestion && originData.congestion.ships && originData.congestion.ships.length > 0) {
+        console.log(`Adding ${originData.congestion.ships.length} ships from origin port: ${originData.name}`);
+        originData.congestion.ships.forEach(ship => {
+            if (ship.point && ship.point.latitude && ship.point.longitude) {
+                // Use red for congested, blue for normal
+                const iconColor = originData.congestion.congested ? '#FF0000' : '#2196F3';
+                const portIcon = L.divIcon({
+                    className: 'ship-marker-simple port-ship',
+                    html: `<i class="fas fa-anchor" style="font-size: 16px; color: ${iconColor};"></i>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12],
+                    popupAnchor: [0, -12]
+                });
+                
+                const marker = L.marker([ship.point.latitude, ship.point.longitude], {icon: portIcon})
+                    .bindPopup(createShipMarker(ship).getPopup());
+                marker.addTo(map);
+                shipMarkers.push(marker);
+            }
+        });
+    }
+    
+    // Add destination port ships (show even if not congested)
+    if (destData.congestion && destData.congestion.ships && destData.congestion.ships.length > 0) {
+        console.log(`Adding ${destData.congestion.ships.length} ships from destination port: ${destData.name}`);
+        destData.congestion.ships.forEach(ship => {
+            if (ship.point && ship.point.latitude && ship.point.longitude) {
+                // Use red for congested, blue for normal
+                const iconColor = destData.congestion.congested ? '#FF0000' : '#2196F3';
+                const portIcon = L.divIcon({
+                    className: 'ship-marker-simple port-ship',
+                    html: `<i class="fas fa-anchor" style="font-size: 16px; color: ${iconColor};"></i>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12],
+                    popupAnchor: [0, -12]
+                });
+                
+                const marker = L.marker([ship.point.latitude, ship.point.longitude], {icon: portIcon})
+                    .bindPopup(createShipMarker(ship).getPopup());
+                marker.addTo(map);
+                shipMarkers.push(marker);
+            }
+        });
+    }
+}
 function toggleLegend() {
             const legend = document.querySelector('.legend');
             const button = document.getElementById('legend-toggle-btn');
@@ -1404,6 +1498,8 @@ function toggleLegend() {
                 if (data.ships) {
                     addShipMarkers(data.ships, window.currentRouteBounds);
                 }
+                    displayCongestionAlerts(data.origin, data.destination);
+                    addCongestedPortShips(data.origin, data.destination);
                 
                 // If no route coordinates but we have port coordinates, fit bounds to show both ports
                 if ((!data.route.coordinates || data.route.coordinates.length === 0) && 
@@ -1420,7 +1516,7 @@ function toggleLegend() {
             .catch(error => {
                 console.error('Error:', error);
                 document.getElementById('loading').style.display = 'none';
-                alert('Failed to calculate route. Please try again.');
+                alert('Failed to calculate route: ' + error.message);
             });
         });
     </script>
