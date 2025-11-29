@@ -4,7 +4,7 @@ import searoute as sr
 # Load port data from CSV
 def load_port_data():
     try:
-        df = pd.read_csv('port_details.csv')
+        df = pd.read_csv('Data/port_details.csv')
         return df
     except Exception as e:
         print(f"Error loading port data: {e}")
