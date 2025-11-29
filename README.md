@@ -80,6 +80,14 @@ The main application - a comprehensive route planning system with integrated dis
 - Ships tracked in disaster-affected areas.
 - Detailed vessel information (MMSI, flag, destination, specifications).
 
+**Port Congestion:**
+- Real-time ship tracking around ports
+- Alerts when too many ships detected
+
+**MPA/ECA Zones:**
+- Shows protected marine environmental areas
+- Highlights route intersections with regulated zones
+
 **Risk Analysis**
 - Origin, destination, and route-based assessments.
 - Configurable proximity thresholds.
@@ -91,6 +99,7 @@ The main application - a comprehensive route planning system with integrated dis
 - Python 3.8+
 - MarinePlan API key
 - WPI Dataset
+- ECA and MPA Data
 
 ### Setup Process
 
@@ -140,6 +149,8 @@ Key settings in `config.py`:
 - GDACS (Global Disaster Alert and Coordination System)
 - MarinePlan AIS Network
 - World Port Index
+- Marine Regions ECA Shapefile
+- Protected Planet MPA Shapefile
 
 ## Project Structure
 ```
@@ -149,13 +160,19 @@ Maritime-Route-Risk-Analysis/
 ├── run.py               # Application entry point
 ├── requirements.txt     # Dependencies
 ├── searoutes.py        # Route calculations
+├── eca_mpa.py          # Protected areas
 ├── disaster.py         # GDACS integration
 ├── ships.py           # Vessel tracking
 ├── .env                # Environment variables
 ├── .gitignore         # Git ignore rules
 ├── README.md          # Project documentation
 ├── Maritime Route Risk - User Document.pdf  # User manual
-├── port_details.csv   # Port database
+├── Data/
+│   ├── port_details.csv
+│   └── marine_polygons.zip
+|   ├── eca_reg14_sox_pm.zip
+│   ├── eca_mpa_data.pkl
+| 
 ├── data-process/
 │   ├── process_ports.py   # Port data processing
 │   └── config.json       # Processing configuration
