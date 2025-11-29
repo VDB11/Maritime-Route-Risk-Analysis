@@ -2,12 +2,40 @@ from flask import Flask, request, jsonify, render_template
 from searoutes import load_port_data, get_water_bodies, get_countries_by_water_body, get_ports_by_water_body_and_country, calculate_sea_route, get_route_coordinates
 from disaster import parse_gdacs_rss, get_nearby_disasters, get_events_along_route, get_disasters_with_ships, ALERT_COLORS
 from ships import get_ships_in_bbox, get_ships_for_disasters, get_ships_near_port
+from eca_mpa import fast_eca_mpa
 from config import Config
+import threading
 
 app = Flask(__name__)
 
 # Load port data once at startup
 port_df = load_port_data()
+
+# Load ECA/MPA data once at startup
+print("Loading ECA/MPA data...")
+fast_eca_mpa.load_data()
+print("ECA/MPA data loaded successfully!")
+
+def get_intersection_geojson(intersections):
+    if not intersections:
+        return None
+    
+    features = []
+    for intersection in intersections:
+        feature = {
+            'type': 'Feature',
+            'geometry': intersection['geometry'].__geo_interface__,
+            'properties': {
+                'type': intersection['type'],
+                'name': intersection.get('name', 'Unknown Area')
+            }
+        }
+        features.append(feature)
+    
+    return {
+        'type': 'FeatureCollection',
+        'features': features
+    }
 
 @app.route('/')
 def index():
@@ -65,7 +93,6 @@ def get_ships_for_disaster(disaster_gdacs_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/route', methods=['POST'])
-@app.route('/api/route', methods=['POST'])
 def calculate_route():
     data = request.json
     origin_port_code = data.get('origin_port')
@@ -111,6 +138,14 @@ def calculate_route():
             origin_congestion = {'congested': False, 'ship_count': 0, 'error': str(e)}
             dest_congestion = {'congested': False, 'ship_count': 0, 'error': str(e)}
         
+        # Check for ECA/MPA intersections
+        eca_mpa_intersections = []
+        if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and route_coords:
+            eca_mpa_intersections = fast_eca_mpa.check_route_intersections(route_coords)
+            print(f"Found {len(eca_mpa_intersections)} ECA/MPA intersections")
+        else:
+            print("ECA/MPA data not loaded yet")
+        
         # Combine all disasters and get ship data
         all_disasters = []
         disaster_ids_seen = set()
@@ -154,10 +189,12 @@ def calculate_route():
                 'coordinates': route_coords,
                 'length': route.properties['length'],
                 'units': route.properties['units'],
-                'disasters': route_disasters
+                'disasters': route_disasters,
+                'eca_mpa_intersections': len(eca_mpa_intersections) > 0
             },
             'alert_colors': ALERT_COLORS,
-            'ships': disasters_with_ships
+            'ships': disasters_with_ships,
+            'eca_mpa_data': get_intersection_geojson(eca_mpa_intersections) if eca_mpa_intersections else None
         }
         
         return jsonify(response)
