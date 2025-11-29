@@ -27,6 +27,14 @@ class Config:
     # Port congestion settings
     PORT_CONGESTION_RADIUS_KM = 2
     PORT_CONGESTION_THRESHOLD = 10
+
+    # ECA and MPA data paths
+    ECA_DATA_PATH = 'Data/eca_reg14_sox_pm.zip'
+    MPA_DATA_PATH = 'Data/marine_polygons.zip'
+    
+    # ECA/MPA visualization settings
+    ECA_MPA_HIGHLIGHT_COLOR = '#FFFF00'  # Yellow
+    ECA_MPA_HIGHLIGHT_OPACITY = 0.3
     
     # Server configuration
     DEBUG = True
