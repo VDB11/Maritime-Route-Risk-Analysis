@@ -247,6 +247,8 @@
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     margin-bottom: 10px;
     max-width: 250px;
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 /* Legend Toggle Button */
@@ -517,7 +519,17 @@
             <span>Normal Port Ships</span>
         </div>
     </div>
-    
+    <div class="legend-section">
+    <h5>Protected Areas</h5>
+    <div class="legend-item">
+        <div class="legend-color" style="background-color: #FFFF00; border: 2px solid #FFD700;"></div>
+        <span>ECA (Emission Control)</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background-color: #FFA500; border: 2px solid #FF8C00;"></div>
+        <span>MPA (Marine Protected)</span>
+    </div>
+</div>    
     <div class="legend-section">
         <h5>Ports & Route</h5>
         <div class="legend-item">
@@ -1192,6 +1204,61 @@ function displayCongestionAlerts(originData, destData) {
     }
 }
 
+// Function to add ECA/MPA areas to map
+function addEcaMpaAreas(ecaMpaData) {
+    if (!ecaMpaData || !ecaMpaData.features || ecaMpaData.features.length === 0) {
+        return;
+    }
+    
+    console.log(`Adding ${ecaMpaData.features.length} ECA/MPA areas`);
+    
+    // Create GeoJSON layer
+    const ecaMpaLayer = L.geoJSON(ecaMpaData, {
+        style: function(feature) {
+            if (feature.properties.type === 'ECA') {
+                return {
+                    fillColor: '#FFFF00',
+                    fillOpacity: 0.3,
+                    color: '#FFD700',
+                    weight: 2,
+                    opacity: 0.7
+                };
+            } else if (feature.properties.type === 'MPA') {
+                return {
+                    fillColor: '#FFA500', 
+                    fillOpacity: 0.3,
+                    color: '#FF8C00',
+                    weight: 2,
+                    opacity: 0.7
+                };
+            } else {
+                return {
+                    fillColor: '#FFFF00',
+                    fillOpacity: 0.2,
+                    color: '#FFD700', 
+                    weight: 1,
+                    opacity: 0.5
+                };
+            }
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties && feature.properties.name) {
+                let popupContent = `<strong>${feature.properties.type} Area</strong><br>`;
+                popupContent += `Name: ${feature.properties.name}<br>`;
+                
+                if (feature.properties.description) {
+                    popupContent += `Description: ${feature.properties.description}`;
+                }
+                
+                layer.bindPopup(popupContent);
+            }
+        }
+    }).addTo(map);
+    
+    // Store reference to remove later
+    window.ecaMpaLayer = ecaMpaLayer;
+}
+
 // Function to add congested port ships to map
 function addCongestedPortShips(originData, destData) {
     // Add origin port ships (show even if not congested)
@@ -1241,24 +1308,24 @@ function addCongestedPortShips(originData, destData) {
     }
 }
 function toggleLegend() {
-            const legend = document.querySelector('.legend');
-            const button = document.getElementById('legend-toggle-btn');
-            
-            if (legend.style.display === 'none') {
-                legend.style.display = 'block';
-                button.innerHTML = '<i class="fas fa-layer-group"></i>';
-                button.title = 'Hide Legend';
-            } else {
-                legend.style.display = 'none';
-                button.innerHTML = '<i class="fas fa-eye"></i>';
-                button.title = 'Show Legend';
-            }
-        }
+    const legend = document.querySelector('.legend');
+    const button = document.getElementById('legend-toggle-btn');
+    
+    if (legend.style.display === 'none') {
+        legend.style.display = 'block';
+        button.innerHTML = '<i class="fas fa-layer-group"></i>';
+        button.title = 'Hide Legend';
+    } else {
+        legend.style.display = 'none';
+        button.innerHTML = '<i class="fas fa-eye"></i>';
+        button.title = 'Show Legend';
+    }
+}
 
         // Initialize when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             const legend = document.querySelector('.legend');
-            const toggleButton = document.getElementById('legend-toggle-btn');
+            const toggleButton = document.getElementById('legend-toggle-btn').addEventListener('click', toggleLegend);
             
             // Ensure legend is initially visible
             if (!legend.style.display) {
@@ -1500,6 +1567,19 @@ function toggleLegend() {
                 }
                     displayCongestionAlerts(data.origin, data.destination);
                     addCongestedPortShips(data.origin, data.destination);
+                if (data.eca_mpa_data) {
+                    addEcaMpaAreas(data.eca_mpa_data);
+    
+    // Add alert for ECA/MPA intersections
+    const disasterAlerts = document.getElementById('disaster-alerts');
+    const alert = document.createElement('div');
+    alert.className = 'alert-box';
+    alert.style.backgroundColor = '#fff3cd';
+    alert.style.borderLeftColor = '#ffc107';
+    alert.style.color = '#856404';
+    alert.innerHTML = `<strong>ECA/MPA Alert!</strong> Route passes through regulated environmental areas`;
+    disasterAlerts.appendChild(alert);
+}
                 
                 // If no route coordinates but we have port coordinates, fit bounds to show both ports
                 if ((!data.route.coordinates || data.route.coordinates.length === 0) && 
