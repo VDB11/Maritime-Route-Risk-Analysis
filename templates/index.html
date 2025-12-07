@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sea Route Disaster Alert System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header-container">
+                <div class="header-icon">
+                    <i class="fas fa-route"></i>
+                </div>
+                <h1>Maritime Route Risk Analysis</h1>
+            </div>
+            
+            <div class="form-group">
+                <label for="origin-water-body">Origin - Water Body:</label>
+                <select id="origin-water-body">
+                    <option value="">Select Water Body</option>
+                </select>
+            </div>
+                
+            <div class="form-group">
+                <label for="origin-country">Origin - Country:</label>
+                <select id="origin-country" disabled>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="origin-port">Origin - Port:</label>
+                <select id="origin-port" disabled>
+                    <option value="">Select Port</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="dest-water-body">Destination - Water Body:</label>
+                <select id="dest-water-body">
+                    <option value="">Select Water Body</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="dest-country">Destination - Country:</label>
+                <select id="dest-country" disabled>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="dest-port">Destination - Port:</label>
+                <select id="dest-port" disabled>
+                    <option value="">Select Port</option>
+                </select>
+            </div>
+            
+            <button id="calculate-route" disabled>Calculate Route & Check Disasters</button>
+            
+            <div class="vessel-controls" id="vessel-controls" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">Vessel Tracking</h3>
+                
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: normal;">Max Vessels to Show:</label>
+                    <select id="vessel-limit" style="width: 100%; padding: 8px; border-radius: 4px; background: white; color: #333;">
+                        <option value="0">No Limit</option>
+                        <option value="10">10 Vessels</option>
+                        <option value="25">25 Vessels</option>
+                        <option value="50">50 Vessels</option>
+                        <option value="100">100 Vessels</option>
+                    </select>
+                </div>
+                
+                <button id="show-vessels-btn" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    <i class="fas fa-ship"></i> Show All Vessels in Area
+                </button>
+                
+                <div id="vessel-count" style="margin-top: 10px; padding: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; text-align: center; display: none;">
+                    <span id="vessel-count-text"></span>
+                </div>
+            </div>
+            
+            <div class="visibility-controls" id="visibility-controls" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">Map Layers</h3>
+    
+                <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="toggle-disasters" checked style="width: auto; margin-right: 10px; cursor: pointer;">
+                    <span style="font-weight: normal;">Show Disaster Alerts</span>
+                </label>
+    
+                <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="toggle-congestion" checked style="width: auto; margin-right: 10px; cursor: pointer;">
+                    <span style="font-weight: normal;">Show Ships</span>
+                </label>
+    
+                <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="toggle-protected" checked style="width: auto; margin-right: 10px; cursor: pointer;">
+                    <span style="font-weight: normal;">Show Protected Areas (ECA/MPA)</span>
+                </label>
+                
+                <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="toggle-vessels" checked style="width: auto; margin-right: 10px; cursor: pointer;">
+                    <span style="font-weight: normal;">Show Vessel Tracking</span>
+                </label>
+            </div>
+            
+            <div class="loading" id="loading">
+                <i class="fas fa-spinner"></i> Calculating route...
+            </div>
+            
+            <div class="route-info" id="route-info" style="display: none;">
+                <h3>Route Information</h3>
+                <p id="route-length"></p>
+                <div id="disaster-alerts"></div>
+                <div id="ship-alerts"></div>
+                <div id="congestion-alerts"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+                
+                <!-- Legend Container -->
+                <div class="legend-container">
+                    <!-- Legend -->
+                    <div class="legend">
+                        <div class="legend-header">
+                            <i class="fas fa-map-legend"></i>
+                            <h4>Legend</h4>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Disaster Alerts</h5>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #ff4444; border: 2px solid #cc0000;"></div>
+                                <span>Red Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #ff8800; border: 2px solid #cc6600;"></div>
+                                <span>Orange Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #44ff44; border: 2px solid #00cc00;"></div>
+                                <span>Green Alert</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #888888; border: 2px solid #555555;"></div>
+                                <span>Unknown</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Vessel Types</h5>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #2196F3;">
+                                    <i class="fas fa-ship"></i>
+                                </div>
+                                <span>Cargo Ships</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #FF9800;">
+                                    <i class="fas fa-ship"></i>
+                                </div>
+                                <span>Tankers</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #FF0000;">
+                                    <i class="fas fa-anchor"></i>
+                                </div>
+                                <span>Congested Port Ships</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #2196F3;">
+                                    <i class="fas fa-anchor"></i>
+                                </div>
+                                <span>Normal Port Ships</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Protected Areas</h5>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #FFFF00; border: 2px solid #FFD700;"></div>
+                                <span>ECA (Emission Control)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #FFA500; border: 2px solid #FF8C00;"></div>
+                                <span>MPA (Marine Protected)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
+                            <h5>Ports & Route</h5>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #4CAF50;">
+                                    <i class="fas fa-circle"></i>
+                                </div>
+                                <span>Origin Port</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon" style="color: #F44336;">
+                                    <i class="fas fa-circle"></i>
+                                </div>
+                                <span>Destination Port</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-line" style="background-color: #0066ff;"></div>
+                                <span>Sea Route</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Legend Toggle Button -->
+                    <div class="legend-toggle">
+                        <button id="legend-toggle-btn" title="Hide Legend">
+                            <i class="fas fa-layer-group"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
