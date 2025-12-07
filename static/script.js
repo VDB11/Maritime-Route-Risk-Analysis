@@ -1,4 +1,4 @@
-// Initialize map
+// Initialize the map
 const map = L.map('map', {
     center: [20, 0],
     zoom: 2,
