@@ -1,6 +1,7 @@
 import os
 import requests
 import math
+from geopy.distance import geodesic
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -148,7 +149,7 @@ def get_ships_near_port(port_lat, port_lon, radius_km=None, threshold=None, api_
     url = "https://ais.marineplan.com/location/2/locations.json"
     params = {
         'area': bbox,
-        'moving': 1,
+        'moving': 0,  # include both moving and stationary ships
         'maxage': 1800,
         'source': 'AIS',
         'key': api_key
@@ -159,18 +160,15 @@ def get_ships_near_port(port_lat, port_lon, radius_km=None, threshold=None, api_
         response.raise_for_status()
         data = response.json()
         
-        # Count all ships (not filtered by type for congestion)
-        ship_count = len(data.get('reports', []))
-        
-        # Get ship details for congested ports
-        ships_data = []
-        if ship_count > 0:
-            for report in data.get('reports', []):
-                point = report.get('point', {})
-                # Skip if coordinates are missing or zero
-                if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
-                    continue
-                
+        filtered_ships = []
+        for report in data.get('reports', []):
+            point = report.get('point', {})
+            if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
+                continue
+            
+            # Check actual distance from port
+            distance = geodesic((port_lat, port_lon), (point['latitude'], point['longitude'])).km
+            if distance <= radius_km:
                 ship_info = {
                     'boatName': report.get('boatName', '').upper(),
                     'mmsi': report.get('mmsi'),
@@ -185,14 +183,17 @@ def get_ships_near_port(port_lat, port_lon, radius_km=None, threshold=None, api_
                     'widthMeters': report.get('widthMeters'),
                     'imo': report.get('imo')
                 }
-                ships_data.append(ship_info)
+                filtered_ships.append(ship_info)
+        
+        ship_count = len(filtered_ships)
+        congested = ship_count > threshold
         
         return {
-            'congested': ship_count > threshold,
+            'congested': congested,
             'ship_count': ship_count,
             'radius_km': radius_km,
             'threshold': threshold,
-            'ships': ships_data  # Add ship details
+            'ships': filtered_ships
         }
         
     except requests.RequestException as e:
