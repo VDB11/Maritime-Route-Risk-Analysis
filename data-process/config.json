@@ -27,5 +27,15 @@
         "lat",
         "lon"
     ],
-    "output_filename": "port_details.csv"
+    "output_filename": "port_details.csv",
+    "files_and_folders": {
+        "input_folder": "Data",
+        "output_folder": "output_marine",
+        "input_zip_pattern": "WDPA_WDOECM_*_shp.zip",
+        "output_zip_name": "marine_polygons.zip",
+        "output_shp_name": "marine_polygons.shp",
+        "temp_prefix": "wdpa_temp_",
+        "log_file": "processing_log.txt",
+        "summary_csv": "marine_summary.csv"
+    }
 }
