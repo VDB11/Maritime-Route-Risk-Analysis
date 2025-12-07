@@ -5,8 +5,9 @@ from ships import get_ships_in_bbox, get_ships_for_disasters, get_ships_near_por
 from eca_mpa import fast_eca_mpa
 from config import Config
 import threading
+import requests
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 # Load port data once at startup
 port_df = load_port_data()
@@ -39,7 +40,7 @@ def get_intersection_geojson(intersections):
 
 @app.route('/')
 def index():
-    return render_template('map.html')
+    return render_template('index.html')
 
 @app.route('/api/water_bodies')
 def get_water_bodies_api():
@@ -126,7 +127,6 @@ def calculate_route():
         print(f"Destination disasters: {len(dest_disasters)}")
         print(f"Route disasters: {len(route_disasters)}")
         
-        
         # Get port congestion data (with error handling)
         try:
             origin_congestion = get_ships_near_port(origin_coords[0], origin_coords[1])
@@ -163,6 +163,23 @@ def calculate_route():
         disasters_with_ships = get_ships_for_disasters(all_disasters, Config.MARINEPLAN_API_KEY)
         print(f"Found {len(disasters_with_ships)} disasters with ships")
         
+        collision_risk_present = False
+        collision_count = 0
+        
+        if disasters_with_ships:
+            # Check if any disaster area has ships that could collide
+            from collision_detection import collision_detector
+            for disaster_id in disasters_with_ships.keys():
+                collisions = collision_detector.get_collisions_in_disaster_area(
+                    disasters_with_ships, disaster_id
+                )
+                if collisions:
+                    collision_risk_present = True
+                    collision_count += len(collisions)
+                    print(f"Found {len(collisions)} collision risks in disaster area {disaster_id}")
+        
+        print(f"Total collision risks detected: {collision_count}")
+        
         # Prepare response with port details
         response = {
             'origin': {
@@ -173,7 +190,7 @@ def calculate_route():
                 'lat': origin_coords[0],
                 'lon': origin_coords[1],
                 'disasters': origin_disasters,
-                'congestion': origin_congestion  # Add congestion data
+                'congestion': origin_congestion
             },
             'destination': {
                 'name': dest_port['port_name'],
@@ -183,7 +200,7 @@ def calculate_route():
                 'lat': dest_coords[0],
                 'lon': dest_coords[1],
                 'disasters': dest_disasters,
-                'congestion': dest_congestion  # Add congestion data
+                'congestion': dest_congestion
             },
             'route': {
                 'coordinates': route_coords,
@@ -194,7 +211,10 @@ def calculate_route():
             },
             'alert_colors': ALERT_COLORS,
             'ships': disasters_with_ships,
-            'eca_mpa_data': get_intersection_geojson(eca_mpa_intersections) if eca_mpa_intersections else None
+            'eca_mpa_data': get_intersection_geojson(eca_mpa_intersections) if eca_mpa_intersections else None,
+            'enable_collision_check': len(disasters_with_ships) > 0,
+            'collision_risk_present': collision_risk_present,
+            'collision_count': collision_count
         }
         
         return jsonify(response)
@@ -202,6 +222,145 @@ def calculate_route():
     except Exception as e:
         print(f"Error in route calculation: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vessels_in_area', methods=['POST'])
+def get_vessels_in_area():
+    """Get vessels within a specified area with limit control"""
+    try:
+        data = request.json
+        sw_lat = float(data.get('sw_lat'))
+        sw_lon = float(data.get('sw_lon'))
+        ne_lat = float(data.get('ne_lat'))
+        ne_lon = float(data.get('ne_lon'))
+        limit = int(data.get('limit', 0))
+        
+        bbox = f"{sw_lat},{sw_lon};{ne_lat},{ne_lon}"
+        
+        url = "https://ais.marineplan.com/location/2/locations.json"
+        params = {
+            'area': bbox,
+            'moving': 1,
+            'maxage': 1800,
+            'source': 'AIS',
+            'key': Config.MARINEPLAN_API_KEY
+        }
+        
+        # Make sure requests is imported at the top of the file
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        filtered_reports = []
+        for report in data.get('reports', []):
+            vessel_type = report.get('vesselType')
+            if vessel_type not in ['CARGO_SHIP', 'TANKER']:
+                continue
+                
+            point = report.get('point', {})
+            if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
+                continue
+            
+            filtered_report = {
+                'boatName': report.get('boatName', '').upper(),
+                'mmsi': report.get('mmsi'),
+                'country': report.get('country'),
+                'vesselType': vessel_type,
+                'point': point,
+                'destinationName': report.get('destinationName', '').upper(),
+                'speedKmh': report.get('speedKmh'),
+                'bearingDeg': report.get('bearingDeg'),
+                'draughtMeters': report.get('draughtMeters'),
+                'lengthMeters': report.get('lengthMeters'),
+                'widthMeters': report.get('widthMeters'),
+                'imo': report.get('imo')
+            }
+            filtered_reports.append(filtered_report)
+            
+            if limit > 0 and len(filtered_reports) >= limit:
+                break
+        
+        return jsonify({
+            'success': True,
+            'count': len(filtered_reports),
+            'vessels': filtered_reports
+        })
+        
+    except Exception as e:
+        print(f"Error fetching vessels: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/collisions/<disaster_gdacs_id>')
+def get_collisions_for_disaster(disaster_gdacs_id):
+    """Get collision risks for ships in a specific disaster area"""
+    try:
+        # Get ships data for the disaster area
+        from ships import get_ships_in_bbox
+        from disaster import parse_gdacs_rss
+        
+        # Find the disaster by GDACS ID
+        disasters = parse_gdacs_rss()
+        target_disaster = None
+        
+        for disaster in disasters:
+            if disaster['gdacs_id'] == disaster_gdacs_id:
+                target_disaster = disaster
+                break
+        
+        if not target_disaster or not target_disaster.get('bbox'):
+            return jsonify([])
+        
+        # Get ships in the disaster area
+        ships = get_ships_in_bbox(target_disaster['bbox'], Config.MARINEPLAN_API_KEY)
+        
+        # Convert to Vessel objects and detect collisions
+        from collision_detection import collision_detector, Vessel
+        
+        vessels = []
+        for ship in ships:
+            vessel = Vessel(
+                mmsi=ship.get('mmsi', 'Unknown'),
+                name=ship.get('boatName', 'Unknown'),
+                lat=ship['point']['latitude'],
+                lon=ship['point']['longitude'],
+                speed_kmh=ship.get('speedKmh', 0),
+                bearing_deg=ship.get('bearingDeg', 0),
+                length_meters=ship.get('lengthMeters'),
+                width_meters=ship.get('widthMeters')
+            )
+            vessels.append(vessel)
+        
+        collisions = collision_detector.detect_collisions(vessels)
+        
+        # Convert to JSON-serializable format
+        collisions_data = []
+        for collision in collisions:
+            collisions_data.append({
+                'vessel_a': {
+                    'mmsi': collision.vessel_a.mmsi,
+                    'name': collision.vessel_a.name,
+                    'lat': collision.vessel_a.lat,
+                    'lon': collision.vessel_a.lon,
+                    'speed_kmh': collision.vessel_a.speed_kmh,
+                    'bearing_deg': collision.vessel_a.bearing_deg
+                },
+                'vessel_b': {
+                    'mmsi': collision.vessel_b.mmsi,
+                    'name': collision.vessel_b.name,
+                    'lat': collision.vessel_b.lat,
+                    'lon': collision.vessel_b.lon,
+                    'speed_kmh': collision.vessel_b.speed_kmh,
+                    'bearing_deg': collision.vessel_b.bearing_deg
+                },
+                'cpa_km': round(collision.cpa_km, 3),
+                'tcpa_minutes': round(collision.tcpa_minutes, 1),
+                'risk_level': collision.risk_level
+            })
+        
+        return jsonify(collisions_data)
+        
+    except Exception as e:
+        print(f"Error calculating collisions: {e}")
+        return jsonify([])
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
