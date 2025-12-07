@@ -155,38 +155,57 @@ Key settings in `config.py`:
 ## Project Structure
 ```
 Maritime-Route-Risk-Analysis/
-├── app.py                 # Main Flask application
-├── config.py             # Configuration settings
-├── run.py               # Application entry point
-├── requirements.txt     # Dependencies
-├── searoutes.py        # Route calculations
-├── eca_mpa.py          # Protected areas
-├── disaster.py         # GDACS integration
-├── ships.py           # Vessel tracking
-├── .env                # Environment variables
-├── .gitignore         # Git ignore rules
-├── README.md          # Project documentation
-├── Maritime Route Risk - User Document.pdf  # User manual
+├── app.py
+├── config.py
+├── run.py
+├── requirements.txt
+├── searoutes.py
+├── eca_mpa.py
+├── disaster.py
+├── ships.py
+├── collision_detection.py
+├── .env
+├── .gitignore
+├── README.md
+├── Maritime Route Risk - User Document.pdf
+│
 ├── Data/
 │   ├── port_details.csv
-│   └── marine_polygons.zip
-|   ├── eca_reg14_sox_pm.zip
-│   ├── eca_mpa_data.pkl
-| 
+│   ├── marine_polygons.zip
+│   ├── eca_reg14_sox_pm.zip
+│   └── eca_mpa_data.pkl
+│
 ├── data-process/
-│   ├── process_ports.py   # Port data processing
-│   └── config.json       # Processing configuration
-├── Ship Tracker/        # Ship tracking submodule
-│   ├── app.py          # Ship tracker Flask app
-│   ├── .env           # Tracker environment variables
-│   ├── filtered_vessels.json  # Tracker vessel data
-│   ├── ocean_regions.csv     # Ocean regions data
+│   ├── config.json
+│   ├── process_mpa.py
+│   ├── process_ports.py
+│   └── UpdatedPub150.csv
+│
+├── images/
+│   ├── congestion.png
+│   ├── event-vessel.png
+│   ├── event.png
+│   ├── port-detail.png
+│   ├── route-event.png
+│   └── ship-tracker.png
+│
+├── Ship Tracker/
+│   ├── app.py
+│   ├── filtered_vessels.json
+│   ├── ocean_regions.csv
 │   ├── static/
-│   │   └── style.css   # Tracker styles
+│   │   └── style.css
 │   └── templates/
-│       └── index.html  # Tracker interface
-└── templates/
-    └── map.html       # Main frontend interface
+│       └── index.html
+│
+├── static/
+│   ├── script.js
+│   └── style.css
+│
+├── templates/
+│   └── index.html
+│
+└── __pycache__/
 ```
 
 ## Troubleshooting
