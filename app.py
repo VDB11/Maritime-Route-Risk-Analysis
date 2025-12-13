@@ -3,6 +3,7 @@ from searoutes import load_port_data, get_water_bodies, get_countries_by_water_b
 from disaster import parse_gdacs_rss, get_nearby_disasters, get_events_along_route, get_disasters_with_ships, ALERT_COLORS
 from ships import get_ships_in_bbox, get_ships_for_disasters, get_ships_near_port
 from eca_mpa import fast_eca_mpa
+from weather_details import get_weather_forecast
 from config import Config
 import threading
 import requests
@@ -361,6 +362,21 @@ def get_collisions_for_disaster(disaster_gdacs_id):
     except Exception as e:
         print(f"Error calculating collisions: {e}")
         return jsonify([])
+
+@app.route('/api/weather')
+def get_weather_api():
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Missing coordinates'}), 400
+    
+    weather_data = get_weather_forecast(lat, lon)
+    
+    if weather_data:
+        return jsonify(weather_data)
+    else:
+        return jsonify({'error': 'Failed to fetch weather data'}), 500
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
