@@ -284,8 +284,9 @@ function createShipMarker(ship) {
                 ${ship.boatName || 'Unknown Vessel'}
             </h3>
             <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
-                ${ship.vesselType || 'Unknown Type'}
+                ${ship.vesselType || 'Unknown Type'}                
             </p>
+            ${createWeatherSection(ship.point.latitude, ship.point.longitude).outerHTML}
         </div>
         
         <!-- Basic Info Section -->
@@ -1004,6 +1005,155 @@ function addCongestedPortShips(originData, destData) {
     }
 }
 
+// Global weather loading function
+function loadWeather(button, lat, lon) {
+    const container = button.closest('[data-weather-container]');
+    const weatherContent = container.querySelector('.weather-content');
+    
+    if (!weatherContent) return;
+    
+    if (weatherContent.style.display === 'none' || weatherContent.style.display === '') {
+        weatherContent.innerHTML = '<div style="text-align: center; padding: 10px; color: #666;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+        weatherContent.style.display = 'block';
+        
+        fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">${data.error}</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div style="margin-bottom: 10px; padding: 8px; background: #f0f7ff; border-radius: 6px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div>
+                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Current Temp</div>
+                                <div style="color: #2d3748; font-size: 13px;">${data.current.temperature_2m}°C</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Wind Speed</div>
+                                <div style="color: #2d3748; font-size: 13px;">${data.current.wind_speed_10m} km/h</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (data.forecast && data.forecast.length > 0) {
+                    html += '<div style="font-weight: 600; color: #4a5568; font-size: 12px; margin-bottom: 8px;">Next 5 Days:</div>';
+                    data.forecast.forEach(day => {
+                        html += `
+                            <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <div style="font-weight: 500; color: #2d3748; font-size: 12px;">${day.day_name}</div>
+                                <div>
+                                    <div style="font-size: 11px; color: #666;">Temp</div>
+                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_temp}°C</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #666;">Wind</div>
+                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_wind} km/h</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                weatherContent.innerHTML = html;
+            })
+            .catch(error => {
+                weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">Failed to load weather</div>`;
+            });
+    } else {
+        weatherContent.style.display = 'none';
+    }
+}
+
+function createWeatherSection(lat, lon) {
+    const container = document.createElement('div');
+    container.innerHTML = `
+        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0;" data-weather-container>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 600; color: #4a5568; font-size: 14px;">
+                    <i class="fas fa-cloud-sun" style="margin-right: 6px; color: #4facfe;"></i>
+                    Weather Forecast
+                </div>
+                <button class="show-weather-btn" onclick="event.preventDefault(); event.stopPropagation(); loadWeather(this, ${lat}, ${lon})"
+                        style="background: #4facfe; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;"
+                        data-lat="${lat}" data-lon="${lon}">
+                    Load Forecast
+                </button>
+            </div>
+            <div class="weather-content" style="display: none;"></div>
+        </div>
+    `;
+    
+    // Add click event with proper event handling for Leaflet popups
+        const btn = container.querySelector('.show-weather-btn');
+        const weatherContent = container.querySelector('.weather-content');
+
+btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (weatherContent.style.display === 'none' || weatherContent.style.display === '') {
+        weatherContent.innerHTML = '<div style="text-align: center; padding: 10px; color: #666;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+        weatherContent.style.display = 'block';
+        
+        fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">${data.error}</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div style="margin-bottom: 10px; padding: 8px; background: #f0f7ff; border-radius: 6px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div>
+                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Current Temp</div>
+                                <div style="color: #2d3748; font-size: 13px;">${data.current.temperature_2m}°C</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Wind Speed</div>
+                                <div style="color: #2d3748; font-size: 13px;">${data.current.wind_speed_10m} km/h</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (data.forecast && data.forecast.length > 0) {
+                    html += '<div style="font-weight: 600; color: #4a5568; font-size: 12px; margin-bottom: 8px;">Next 5 Days:</div>';
+                    data.forecast.forEach(day => {
+                        html += `
+                            <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <div style="font-weight: 500; color: #2d3748; font-size: 12px;">${day.day_name}</div>
+                                <div>
+                                    <div style="font-size: 11px; color: #666;">Temp</div>
+                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_temp}°C</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #666;">Wind</div>
+                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_wind} km/h</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                weatherContent.innerHTML = html;
+            })
+            .catch(error => {
+                weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">Failed to load weather</div>`;
+            });
+    } else {
+        weatherContent.style.display = 'none';
+    }
+});
+
+return container;
+}
+
 // Function to create vessel marker for tracking
 function createVesselTrackMarker(vessel) {
     const vesselType = vessel.vesselType || 'UNKNOWN';
@@ -1142,6 +1292,7 @@ function createVesselTrackMarker(vessel) {
                 </div>
             </div>
             ` : ''}
+            ${createWeatherSection(vessel.point.latitude, vessel.point.longitude).outerHTML}
         </div>
     `;
     
@@ -1352,14 +1503,18 @@ function createPortPopup(portData, isOrigin = true) {
                 </div>
             </div>
             
-            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 16px;">📍</span>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
-                    <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
-                </div>
+            <div style="margin-bottom: 8px;">
+    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center;">
+        <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 16px;">📍</span>
+        </div>
+        <div>
+            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
+            <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
+        </div>
+    </div>
+    ${createWeatherSection(portData.lat, portData.lon).outerHTML}
+</div>
             </div>
         </div>
     `;
