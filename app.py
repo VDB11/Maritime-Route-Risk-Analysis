@@ -4,6 +4,7 @@ from disaster import parse_gdacs_rss, get_nearby_disasters, get_events_along_rou
 from ships import get_ships_in_bbox, get_ships_for_disasters, get_ships_near_port
 from eca_mpa import fast_eca_mpa
 from weather_details import get_weather_forecast
+from piracy_tracker import piracy_monitor
 from config import Config
 import threading
 import requests
@@ -123,10 +124,15 @@ def calculate_route():
         dest_disasters = get_nearby_disasters(dest_coords[0], dest_coords[1], disaster_events)
         route_disasters = get_events_along_route(route_coords, disaster_events)
 
+        all_piracy_incidents = piracy_monitor.piracy_incidents
+        current_month_piracy = piracy_monitor.get_current_month_summary()
+
         print(f"Found {len(disaster_events)} total disasters")
         print(f"Origin disasters: {len(origin_disasters)}")
         print(f"Destination disasters: {len(dest_disasters)}")
         print(f"Route disasters: {len(route_disasters)}")
+        print(f"Total piracy incidents (last 5 months): {len(all_piracy_incidents)}")
+        print(f"Current month piracy incidents: {len(current_month_piracy)}")
         
         # Get port congestion data (with error handling)
         try:
@@ -215,7 +221,13 @@ def calculate_route():
             'eca_mpa_data': get_intersection_geojson(eca_mpa_intersections) if eca_mpa_intersections else None,
             'enable_collision_check': len(disasters_with_ships) > 0,
             'collision_risk_present': collision_risk_present,
-            'collision_count': collision_count
+            'collision_count': collision_count,
+            'piracy': {
+                'incidents_near_route': len(all_piracy_incidents),
+                'current_month_total': len(current_month_piracy),
+                'incidents': all_piracy_incidents,
+                'current_month_summary': current_month_piracy
+            }
         }
         
         return jsonify(response)
