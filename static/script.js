@@ -245,6 +245,17 @@ function clearMapLayers() {
     
     // Clear stored route bounds
     window.currentRouteBounds = null;
+
+    // Add to clearMapLayers function
+if (window.piracyMarkers) {
+    window.piracyMarkers.forEach(marker => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    });
+    window.piracyMarkers = [];
+}
+
 }
 
 // Function to create ship markers
@@ -286,7 +297,6 @@ function createShipMarker(ship) {
             <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
                 ${ship.vesselType || 'Unknown Type'}                
             </p>
-            ${createWeatherSection(ship.point.latitude, ship.point.longitude).outerHTML}
         </div>
         
         <!-- Basic Info Section -->
@@ -391,6 +401,9 @@ function createShipMarker(ship) {
             </div>
         </div>
         ` : ''}
+        
+        <!-- Weather Forecast Section (MOVED TO BOTTOM) -->
+        ${createWeatherSection(ship.point.latitude, ship.point.longitude).outerHTML}
     </div>
 `;
 
@@ -1154,6 +1167,105 @@ btn.addEventListener('click', function(e) {
 return container;
 }
 
+// Function to create piracy incident marker
+function createPiracyMarker(incident) {
+    const piracyIcon = L.divIcon({
+        className: 'piracy-icon',
+        html: `<i class="fas fa-skull-crossbones" style="color: #8B0000; font-size: 18px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);"></i>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
+    });
+    
+    const popupHtml = `
+        <div style="font-family: Arial, sans-serif; min-width: 300px; max-width: 350px;">
+            <div style="background: linear-gradient(135deg, #8B0000 0%, #B22222 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+                    <i class="fas fa-skull-crossbones"></i> Piracy Incident
+                </h3>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <div style="background: #ffe6e6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 16px; color: #8B0000;">📅</span>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Date of Incident</div>
+                    <div style="color: #2d3748; font-size: 14px;">${incident.date}</div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <div style="background: #ffe6e6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 16px; color: #8B0000;">🔢</span>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Incident Number</div>
+                    <div style="color: #2d3748; font-size: 14px;">${incident.incident_number || 'N/A'}</div>
+                </div>
+            </div>
+            
+            ${incident.location_desc ? `
+            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <div style="background: #ffe6e6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 16px; color: #8B0000;">📍</span>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Location</div>
+                    <div style="color: #2d3748; font-size: 14px;">${incident.location_desc}</div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${incident.incident_type ? `
+            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <div style="background: #ffe6e6; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 16px; color: #8B0000;">⚠️</span>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Type</div>
+                    <div style="color: #2d3748; font-size: 14px;">${incident.incident_type}</div>
+                </div>
+            </div>
+            ` : ''}
+            
+                <div style="margin-top: 12px; padding: 12px; background: #fff5f5; border-radius: 6px; border-left: 3px solid #8B0000;">
+                <div style="font-weight: 600; color: #8B0000; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-file-alt"></i> Situation Report
+                </div>
+                <div style="color: #2d3748; font-size: 13px; line-height: 1.5; white-space: pre-line; background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                    ${incident.sitrep || 'No details available'}
+                </div>
+            </div>
+            
+            <div style="margin-top: 12px; font-size: 12px; color: #666; text-align: center;">
+                <i>Coordinates: ${incident.lat?.toFixed(4) || 'N/A'}, ${incident.lon?.toFixed(4) || 'N/A'}</i>
+            </div>
+        </div>
+    `;
+    
+    return L.marker([incident.lat, incident.lon], {icon: piracyIcon})
+        .bindPopup(popupHtml);
+}
+
+// Function to add piracy markers
+function addPiracyMarkers(piracyData, routeBounds = null) {
+    if (!piracyData || !piracyData.incidents || piracyData.incidents.length === 0) {
+        return;
+    }
+    
+    console.log(`Adding ${piracyData.incidents.length} piracy incident markers`);
+    
+    piracyData.incidents.forEach(incident => {
+        if (incident.lat && incident.lon) {
+            const marker = createPiracyMarker(incident);
+            marker.addTo(map);
+            window.piracyMarkers = window.piracyMarkers || [];
+            window.piracyMarkers.push(marker);
+        }
+    });
+}
+
 // Function to create vessel marker for tracking
 function createVesselTrackMarker(vessel) {
     const vesselType = vessel.vesselType || 'UNKNOWN';
@@ -1641,16 +1753,41 @@ document.getElementById('calculate-route').addEventListener('click', function() 
         // Show vessel controls
         document.getElementById('vessel-controls').style.display = 'block';
         
-        // Draw route on map if coordinates are available
+                // Draw route on map if coordinates are available
         if (data.route.coordinates && data.route.coordinates.length > 0) {
             const routeCoords = data.route.coordinates;
-            routeLayer = L.polyline(routeCoords, {
+            
+            // Add origin and destination ports to the route coordinates
+            const fullRouteCoords = [];
+            
+            // Add origin port as first point
+            if (data.origin && data.origin.lat && data.origin.lon) {
+                const [adjOriginLat, adjOriginLon] = getOptimalDisasterPosition(
+                    data.origin.lat, data.origin.lon, window.currentRouteBounds
+                );
+                fullRouteCoords.push([adjOriginLat, adjOriginLon]);
+            }
+            
+            // Add all route coordinates
+            fullRouteCoords.push(...routeCoords);
+            
+            // Add destination port as last point
+            if (data.destination && data.destination.lat && data.destination.lon) {
+                const [adjDestLat, adjDestLon] = getOptimalDisasterPosition(
+                    data.destination.lat, data.destination.lon, window.currentRouteBounds
+                );
+                fullRouteCoords.push([adjDestLat, adjDestLon]);
+            }
+            
+            routeLayer = L.polyline(fullRouteCoords, {
                 color: '#0066ff',
                 weight: 4,
-                opacity: 0.8
+                opacity: 0.8,
+                lineCap: 'round',
+                lineJoin: 'round'
             }).addTo(map);
             
-            // Fit map to show the entire route
+            // Fit map to show the entire route with ports
             map.fitBounds(routeLayer.getBounds(), {padding: [20, 20]});
             
             // Store route bounds for disaster positioning
@@ -1745,6 +1882,31 @@ document.getElementById('calculate-route').addEventListener('click', function() 
             alert.style.color = '#856404';
             alert.innerHTML = `<strong>ECA/MPA Alert!</strong> Route passes through regulated environmental areas`;
             disasterAlerts.appendChild(alert);
+        }
+
+        // Add piracy incidents if available
+        if (data.piracy && data.piracy.incidents && data.piracy.incidents.length > 0) {
+            addPiracyMarkers(data.piracy, window.currentRouteBounds);
+            
+            // Add piracy alert to sidebar
+            const alert = document.createElement('div');
+            alert.className = 'alert-box';
+            alert.style.backgroundColor = '#fff5f5';
+            alert.style.borderLeftColor = '#8B0000';
+            alert.style.color = '#721c24';
+            alert.innerHTML = `<strong><i class="fas fa-skull-crossbones"></i> Piracy Alert!</strong> ${data.piracy.incidents.length} incident(s) detected (last 5 months)`;
+            disasterAlerts.appendChild(alert);
+            
+            // Add current month summary
+            if (data.piracy.current_month_total > 0) {
+                const summaryAlert = document.createElement('div');
+                summaryAlert.className = 'alert-box';
+                summaryAlert.style.backgroundColor = '#fff5f5';
+                summaryAlert.style.borderLeftColor = '#8B0000';
+                summaryAlert.style.color = '#721c24';
+                summaryAlert.innerHTML = `<strong>Current Month Piracy:</strong> ${data.piracy.current_month_total} incident(s)`;
+                disasterAlerts.appendChild(summaryAlert);
+            }
         }
         
         // If no route coordinates but we have port coordinates, fit bounds to show both ports
