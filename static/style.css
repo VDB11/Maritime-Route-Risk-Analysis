@@ -426,3 +426,44 @@ button:disabled {
     50% { transform: scale(1.1); }
     100% { transform: scale(1); }
 }
+
+/* Vessel Tracking Button */
+#vessel-tracking-btn {
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%) !important;
+    color: white !important;
+    font-weight: bold !important;
+    margin-top: 10px !important;
+    transition: all 0.3s ease !important;
+}
+
+#vessel-tracking-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Vessel Tracking Page Styles */
+.tracking-option {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    color: white;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.tracking-option:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(5px);
+}
+
+.tracking-option i {
+    margin-right: 10px;
+    font-size: 18px;
+}
