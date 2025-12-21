@@ -16,8 +16,7 @@ EVENT_TYPE_MAP = {
     'TC': 'Tropical Cyclone',
     'FL': 'Flood',
     'VO': 'Volcano',
-    'DR': 'Drought',
-    'WF': 'Wildfire'
+    'DR': 'Drought'
 }
 
 # Alert level colors
@@ -29,7 +28,6 @@ ALERT_COLORS = {
 }
 
 def haversine_distance(lat1, lon1, lat2, lon2):
-    """Calculate the great circle distance between two points on Earth"""
     R = 6371  # Earth radius in km
     
     lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
@@ -42,7 +40,6 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 def parse_gdacs_rss():
-    """Parse GDACS RSS feed and extract events with geographic data"""
     try:
         response = requests.get(Config.GDACS_RSS_URL, timeout=10)
         response.raise_for_status()
@@ -142,11 +139,9 @@ def parse_gdacs_rss():
         return []
     
 def filter_current_events(events):
-    """Filter events to only include current ones"""
     return [event for event in events if event.get('is_current', False)]
 
 def get_nearby_disasters(lat, lon, events=None, threshold_km=500):
-    """Find disasters near a given coordinate"""
     if events is None:
         events = parse_gdacs_rss()
     
@@ -162,7 +157,6 @@ def get_nearby_disasters(lat, lon, events=None, threshold_km=500):
     return nearby_events
 
 def get_events_along_route(route_coords, events=None, threshold_km=500):
-    """Find disasters near any point along a route"""
     if events is None:
         events = parse_gdacs_rss()
     
@@ -181,15 +175,5 @@ def get_events_along_route(route_coords, events=None, threshold_km=500):
     return route_events
 
 def get_disasters_with_ships(disasters, api_key=None):
-    """
-    Get disaster information enriched with ship data for disasters that have bounding boxes
-    
-    Args:
-        disasters: List of disaster events
-        api_key: MarinePlan API key
-    
-    Returns:
-        Tuple of (disasters, disaster_ships_mapping)
-    """
     disaster_ships = get_ships_for_disasters(disasters, api_key)
     return disasters, disaster_ships

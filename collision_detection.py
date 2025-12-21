@@ -77,8 +77,6 @@ class CollisionDetector:
     def determine_risk_level(self, cpa_km: float, tcpa_minutes: float) -> str:
         if cpa_km <= self.cpa_critical_km and tcpa_minutes <= self.tcpa_critical_min:
             return "CRITICAL"
-        elif cpa_km <= self.cpa_warning_km and tcpa_minutes <= self.tcpa_warning_min:
-            return "WARNING"
         else:
             return "LOW"
 
@@ -130,7 +128,7 @@ class CollisionDetector:
             cpa = cpa_km[k]
             tcpa_m = tcpa_min[k]
             risk = self.determine_risk_level(cpa, tcpa_m)
-            if risk != "LOW":
+            if risk == "CRITICAL":
                 collisions.append(CollisionRisk(vessels[i], vessels[j], float(cpa), float(tcpa_m), risk))
         return collisions
 

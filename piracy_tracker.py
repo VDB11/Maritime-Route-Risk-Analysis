@@ -52,7 +52,6 @@ class PiracyMonitor:
             self.piracy_incidents = []
     
     def parse_coordinates(self, address):
-        """Parse coordinates from address string like '-8.702222222,13.30138889'"""
         try:
             if ',' in address:
                 parts = address.split(',')

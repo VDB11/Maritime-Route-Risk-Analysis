@@ -7,13 +7,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def calculate_centroid(sw_lat, sw_lon, ne_lat, ne_lon):
-    """Calculate the centroid of a bounding box"""
     center_lat = (sw_lat + ne_lat) / 2
     center_lon = (sw_lon + ne_lon) / 2
     return center_lat, center_lon
 
 def calculate_bbox_around_point(lat, lon, radius_km):
-    """Calculate bounding box around a point with given radius in km"""
     earth_radius = 6371
     lat_rad = math.radians(lat)
     delta_lat = (radius_km / earth_radius) * (180 / math.pi)
@@ -30,9 +28,6 @@ def format_bbox_for_api(bbox_dict):
     return f"{bbox_dict['lat_min']},{bbox_dict['lon_min']};{bbox_dict['lat_max']},{bbox_dict['lon_max']}"
 
 def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
-    """
-    Get ships within a disaster bounding box
-    """
     if not api_key:
         api_key = os.getenv('MARINEPLAN_API_KEY')
         if not api_key:
@@ -106,9 +101,6 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
         return []
 
 def get_ships_for_disasters(disasters, api_key=None):
-    """
-    Get ships for multiple disasters that have bounding boxes
-    """
     disaster_ships = {}
     
     for disaster in disasters:
@@ -127,9 +119,6 @@ def get_ships_for_disasters(disasters, api_key=None):
     return disaster_ships
 
 def get_ships_near_port(port_lat, port_lon, radius_km=None, threshold=None, api_key=None):
-    """
-    Get ships within a radius of a port to detect congestion
-    """
     if not api_key:
         api_key = os.getenv('MARINEPLAN_API_KEY')
         if not api_key:
