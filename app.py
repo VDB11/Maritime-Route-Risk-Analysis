@@ -61,7 +61,6 @@ def get_ports_api(water_body, country_code):
 
 @app.route('/api/ships/<disaster_gdacs_id>')
 def get_ships_for_disaster(disaster_gdacs_id):
-    """Get ships within a specific disaster's bounding box"""
     try:
         # Get all current disasters
         disaster_events = parse_gdacs_rss()
@@ -147,11 +146,14 @@ def calculate_route():
         
         # Check for ECA/MPA intersections
         eca_mpa_intersections = []
-        if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and route_coords:
-            eca_mpa_intersections = fast_eca_mpa.check_route_intersections(route_coords)
-            print(f"Found {len(eca_mpa_intersections)} ECA/MPA intersections")
-        else:
-            print("ECA/MPA data not loaded yet")
+        if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and route_coords and len(route_coords) > 0:
+            try:
+                print("Checking for ECA/MPA intersections along route...")
+                eca_mpa_intersections = fast_eca_mpa.check_route_intersections(route_coords)
+                print(f"Found {len(eca_mpa_intersections)} ECA/MPA intersections")
+            except Exception as e:
+                print(f"Error checking ECA/MPA intersections: {e}")
+                eca_mpa_intersections = []
         
         # Combine all disasters and get ship data
         all_disasters = []
@@ -238,7 +240,6 @@ def calculate_route():
 
 @app.route('/api/vessels_in_area', methods=['POST'])
 def get_vessels_in_area():
-    """Get vessels within a specified area with limit control"""
     try:
         data = request.json
         sw_lat = float(data.get('sw_lat'))
@@ -258,7 +259,6 @@ def get_vessels_in_area():
             'key': Config.MARINEPLAN_API_KEY
         }
         
-        # Make sure requests is imported at the top of the file
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
@@ -304,7 +304,6 @@ def get_vessels_in_area():
 
 @app.route('/api/collisions/<disaster_gdacs_id>')
 def get_collisions_for_disaster(disaster_gdacs_id):
-    """Get collision risks for ships in a specific disaster area"""
     try:
         # Get ships data for the disaster area
         from ships import get_ships_in_bbox
@@ -389,6 +388,97 @@ def get_weather_api():
         return jsonify(weather_data)
     else:
         return jsonify({'error': 'Failed to fetch weather data'}), 500
+
+@app.route('/vessel_tracking')
+def vessel_tracking():
+    return render_template('vessel_tracking.html')
+
+@app.route('/api/disasters')
+def get_disasters_api():
+    try:
+        disasters = parse_gdacs_rss()        
+        current_disasters = []
+        for disaster in disasters:
+            # Check if the disaster is still current
+            if disaster.get('is_current', False):
+                if disaster.get('to_date'):
+                    from datetime import datetime
+                    try:
+                        # Parse the date string
+                        to_date_str = disaster['to_date']
+                        to_date = datetime.strptime(to_date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        current_time = datetime.utcnow()
+                        
+                        if to_date < current_time:
+                            print(f"Skipping ended disaster: {disaster['title']} (ended on {to_date})")
+                            continue
+                    except ValueError as e:
+                        print(f"Error parsing date {disaster['to_date']}: {e}")
+                        pass
+                
+                current_disasters.append(disaster)
+        
+        print(f"Returning {len(current_disasters)} current disasters (filtered from {len(disasters)})")
+        return jsonify(current_disasters)
+        
+    except Exception as e:
+        print(f"Error getting disasters: {e}")
+        return jsonify([])
+
+@app.route('/api/detect_collisions', methods=['POST'])
+def detect_collisions_api():
+    try:
+        data = request.json
+        vessels = data.get('vessels', [])
+        
+        from collision_detection import collision_detector, Vessel
+        
+        # Convert to Vessel objects
+        vessel_objects = []
+        for v in vessels:
+            vessel = Vessel(
+                mmsi=v.get('mmsi', 'Unknown'),
+                name=v.get('name', 'Unknown'),
+                lat=v['lat'],
+                lon=v['lon'],
+                speed_kmh=v['speed_kmh'],
+                bearing_deg=v['bearing_deg']
+            )
+            vessel_objects.append(vessel)
+        
+        # Detect collisions
+        collisions = collision_detector.detect_collisions(vessel_objects)
+        
+        # Convert to JSON-serializable format
+        collisions_data = []
+        for collision in collisions:
+            collisions_data.append({
+                'vessel_a': {
+                    'mmsi': collision.vessel_a.mmsi,
+                    'name': collision.vessel_a.name,
+                    'lat': collision.vessel_a.lat,
+                    'lon': collision.vessel_a.lon,
+                    'speed_kmh': collision.vessel_a.speed_kmh,
+                    'bearing_deg': collision.vessel_a.bearing_deg
+                },
+                'vessel_b': {
+                    'mmsi': collision.vessel_b.mmsi,
+                    'name': collision.vessel_b.name,
+                    'lat': collision.vessel_b.lat,
+                    'lon': collision.vessel_b.lon,
+                    'speed_kmh': collision.vessel_b.speed_kmh,
+                    'bearing_deg': collision.vessel_b.bearing_deg
+                },
+                'cpa_km': round(collision.cpa_km, 3),
+                'tcpa_minutes': round(collision.tcpa_minutes, 1),
+                'risk_level': collision.risk_level
+            })
+        
+        return jsonify(collisions_data)
+        
+    except Exception as e:
+        print(f"Error detecting collisions: {e}")
+        return jsonify([])
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
