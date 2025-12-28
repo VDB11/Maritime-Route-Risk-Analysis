@@ -134,16 +134,24 @@ class CollisionDetector:
 
     def get_collisions_in_disaster_area(self, ships_data: Dict, disaster_gdacs_id: str) -> List[CollisionRisk]:
         vessels = []
+        seen_mmsi = set()
+    
         if disaster_gdacs_id in ships_data:
             disaster_ships = ships_data[disaster_gdacs_id].get('ships', [])
             for ship in disaster_ships:
+                mmsi = ship.get('mmsi', 'Unknown')
+            
+                if mmsi in seen_mmsi:
+                    continue
+                seen_mmsi.add(mmsi)
+            
                 if (ship.get('point') and 
                     ship['point'].get('latitude') is not None and 
                     ship['point'].get('longitude') is not None and
                     ship.get('speedKmh') is not None and
                     ship.get('bearingDeg') is not None):
                     vessels.append(Vessel(
-                        mmsi=ship.get('mmsi', 'Unknown'),
+                        mmsi=mmsi,
                         name=ship.get('boatName', 'Unknown'),
                         lat=ship['point']['latitude'],
                         lon=ship['point']['longitude'],
@@ -151,7 +159,7 @@ class CollisionDetector:
                         bearing_deg=ship.get('bearingDeg', 0),
                         length_meters=ship.get('lengthMeters'),
                         width_meters=ship.get('widthMeters')
-                    ))
+                    ))        
         return self.detect_collisions(vessels)
 
 collision_detector = CollisionDetector()

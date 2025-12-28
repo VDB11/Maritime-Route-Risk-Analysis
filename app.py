@@ -8,11 +8,21 @@ from piracy_tracker import piracy_monitor
 from config import Config
 import threading
 import requests
+import pandas as pd
+import concurrent.futures
+from functools import partial
 
 app = Flask(__name__, static_folder='static')
 
 # Load port data once at startup
 port_df = load_port_data()
+
+ocean_regions_df = None
+try:
+    ocean_regions_df = pd.read_csv('Data/ocean_regions.csv')
+    print(f"Loaded {len(ocean_regions_df)} ocean regions")
+except Exception as e:
+    print(f"Error loading ocean regions: {e}")
 
 # Load ECA/MPA data once at startup
 print("Loading ECA/MPA data...")
@@ -25,12 +35,17 @@ def get_intersection_geojson(intersections):
     
     features = []
     for intersection in intersections:
+        # Clean up the name - replace underscores with spaces
+        raw_name = intersection.get('name', 'Unknown Area')
+        clean_name = raw_name.replace('_', ' ').strip()
+        
         feature = {
             'type': 'Feature',
             'geometry': intersection['geometry'].__geo_interface__,
             'properties': {
                 'type': intersection['type'],
-                'name': intersection.get('name', 'Unknown Area')
+                'name': clean_name,
+                'raw_name': raw_name  
             }
         }
         features.append(feature)
@@ -41,8 +56,16 @@ def get_intersection_geojson(intersections):
     }
 
 @app.route('/')
-def index():
+def homepage():
+    return render_template('homepage.html')
+
+@app.route('/route_planner')
+def route_planner():
     return render_template('index.html')
+
+@app.route('/demo_map')
+def demo_map():
+    return render_template('demo_map.html')
 
 @app.route('/api/water_bodies')
 def get_water_bodies_api():
@@ -58,6 +81,17 @@ def get_countries_api(water_body):
 def get_ports_api(water_body, country_code):
     ports = get_ports_by_water_body_and_country(port_df, water_body, country_code)
     return jsonify(ports)
+
+@app.route('/api/ocean_regions')
+def get_ocean_regions_api():
+    try:
+        if ocean_regions_df is not None:
+            regions = ocean_regions_df.to_dict('records')
+            return jsonify(regions)
+        return jsonify([])
+    except Exception as e:
+        print(f"Error getting ocean regions: {e}")
+        return jsonify([])
 
 @app.route('/api/ships/<disaster_gdacs_id>')
 def get_ships_for_disaster(disaster_gdacs_id):
@@ -101,82 +135,87 @@ def calculate_route():
     dest_port_code = data.get('dest_port')
     
     try:
-        # Find port coordinates and details
+        # Find port coordinates (FAST - keep sequential)
         origin_port = port_df[port_df['port_code'] == origin_port_code].iloc[0]
         dest_port = port_df[port_df['port_code'] == dest_port_code].iloc[0]
         
         origin_coords = [origin_port['lat'], origin_port['lon']]
         dest_coords = [dest_port['lat'], dest_port['lon']]
         
-        # Calculate route
+        # Calculate route (FAST - keep sequential)
         route = calculate_sea_route(origin_coords[0], origin_coords[1], dest_coords[0], dest_coords[1])
         
         if not route:
             return jsonify({'error': 'Failed to calculate route'}), 500
         
-        # Extract route coordinates
         route_coords = get_route_coordinates(route)
         
-        # Get disaster events
-        disaster_events = parse_gdacs_rss()
-        origin_disasters = get_nearby_disasters(origin_coords[0], origin_coords[1], disaster_events)
-        dest_disasters = get_nearby_disasters(dest_coords[0], dest_coords[1], disaster_events)
-        route_disasters = get_events_along_route(route_coords, disaster_events)
-
-        all_piracy_incidents = piracy_monitor.piracy_incidents
-        current_month_piracy = piracy_monitor.get_current_month_summary()
-
-        print(f"Found {len(disaster_events)} total disasters")
-        print(f"Origin disasters: {len(origin_disasters)}")
-        print(f"Destination disasters: {len(dest_disasters)}")
-        print(f"Route disasters: {len(route_disasters)}")
-        print(f"Total piracy incidents (last 5 months): {len(all_piracy_incidents)}")
-        print(f"Current month piracy incidents: {len(current_month_piracy)}")
+        # RUN ALL SLOW OPERATIONS IN PARALLEL
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all tasks at once
+            future_disasters = executor.submit(parse_gdacs_rss)
+            future_piracy = executor.submit(lambda: piracy_monitor.piracy_incidents)
+            future_piracy_month = executor.submit(piracy_monitor.get_current_month_summary)
+            future_origin_congestion = executor.submit(
+                get_ships_near_port, 
+                origin_coords[0], 
+                origin_coords[1]
+            )
+            future_dest_congestion = executor.submit(
+                get_ships_near_port, 
+                dest_coords[0], 
+                dest_coords[1]
+            )
+            
+            # Wait for disaster data first (needed for next step)
+            disaster_events = future_disasters.result()
+            
+            # Calculate nearby disasters
+            origin_disasters = get_nearby_disasters(origin_coords[0], origin_coords[1], disaster_events)
+            dest_disasters = get_nearby_disasters(dest_coords[0], dest_coords[1], disaster_events)
+            route_disasters = get_events_along_route(route_coords, disaster_events)
+            
+            # Combine all disasters
+            all_disasters = []
+            disaster_ids_seen = set()
+            
+            for disasters_list in [origin_disasters, dest_disasters, route_disasters]:
+                for disaster in disasters_list:
+                    if disaster['gdacs_id'] not in disaster_ids_seen:
+                        all_disasters.append(disaster)
+                        disaster_ids_seen.add(disaster['gdacs_id'])
+            
+            # Get ships for disasters in parallel with ECA/MPA check
+            future_disaster_ships = executor.submit(
+                get_ships_for_disasters, 
+                all_disasters, 
+                Config.MARINEPLAN_API_KEY
+            )
+            
+            # Check ECA/MPA if route exists
+            eca_mpa_intersections = []
+            if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and route_coords and len(route_coords) > 0:
+                future_eca_mpa = executor.submit(
+                    fast_eca_mpa.check_route_intersections, 
+                    route_coords
+                )
+                try:
+                    eca_mpa_intersections = future_eca_mpa.result()
+                except Exception as e:
+                    print(f"Error checking ECA/MPA intersections: {e}")
+            
+            # Collect all parallel results
+            disasters_with_ships = future_disaster_ships.result()
+            all_piracy_incidents = future_piracy.result()
+            current_month_piracy = future_piracy_month.result()
+            origin_congestion = future_origin_congestion.result()
+            dest_congestion = future_dest_congestion.result()
         
-        # Get port congestion data (with error handling)
-        try:
-            origin_congestion = get_ships_near_port(origin_coords[0], origin_coords[1])
-            dest_congestion = get_ships_near_port(dest_coords[0], dest_coords[1])
-            print(f"Origin congestion: {origin_congestion}")
-            print(f"Destination congestion: {dest_congestion}")
-        except Exception as e:
-            print(f"Error getting congestion data: {e}")
-            origin_congestion = {'congested': False, 'ship_count': 0, 'error': str(e)}
-            dest_congestion = {'congested': False, 'ship_count': 0, 'error': str(e)}
-        
-        # Check for ECA/MPA intersections
-        eca_mpa_intersections = []
-        if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and route_coords and len(route_coords) > 0:
-            try:
-                print("Checking for ECA/MPA intersections along route...")
-                eca_mpa_intersections = fast_eca_mpa.check_route_intersections(route_coords)
-                print(f"Found {len(eca_mpa_intersections)} ECA/MPA intersections")
-            except Exception as e:
-                print(f"Error checking ECA/MPA intersections: {e}")
-                eca_mpa_intersections = []
-        
-        # Combine all disasters and get ship data
-        all_disasters = []
-        disaster_ids_seen = set()
-        
-        for disasters_list in [origin_disasters, dest_disasters, route_disasters]:
-            for disaster in disasters_list:
-                if disaster['gdacs_id'] not in disaster_ids_seen:
-                    all_disasters.append(disaster)
-                    disaster_ids_seen.add(disaster['gdacs_id'])
-
-        disasters_with_bbox = [d for d in all_disasters if d.get('bbox')]
-        print(f"Disasters with bounding boxes: {len(disasters_with_bbox)}")
-        
-        # Get ships for disasters that have bounding boxes
-        disasters_with_ships = get_ships_for_disasters(all_disasters, Config.MARINEPLAN_API_KEY)
-        print(f"Found {len(disasters_with_ships)} disasters with ships")
-        
+        # Check collisions (needs ships data)
         collision_risk_present = False
         collision_count = 0
         
         if disasters_with_ships:
-            # Check if any disaster area has ships that could collide
             from collision_detection import collision_detector
             for disaster_id in disasters_with_ships.keys():
                 collisions = collision_detector.get_collisions_in_disaster_area(
@@ -185,11 +224,8 @@ def calculate_route():
                 if collisions:
                     collision_risk_present = True
                     collision_count += len(collisions)
-                    print(f"Found {len(collisions)} collision risks in disaster area {disaster_id}")
         
-        print(f"Total collision risks detected: {collision_count}")
-        
-        # Prepare response with port details
+        # Prepare response
         response = {
             'origin': {
                 'name': origin_port['port_name'],
@@ -236,16 +272,36 @@ def calculate_route():
         
     except Exception as e:
         print(f"Error in route calculation: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/vessels_in_area', methods=['POST'])
 def get_vessels_in_area():
     try:
         data = request.json
-        sw_lat = float(data.get('sw_lat'))
-        sw_lon = float(data.get('sw_lon'))
-        ne_lat = float(data.get('ne_lat'))
-        ne_lon = float(data.get('ne_lon'))
+        
+        # Check if ocean region is specified
+        if data.get('ocean_region'):
+            region_name = data.get('ocean_region')
+            if ocean_regions_df is not None:
+                region = ocean_regions_df[ocean_regions_df['name'] == region_name]
+                if not region.empty:
+                    sw_lat = float(region.iloc[0]['min_Y'])
+                    sw_lon = float(region.iloc[0]['min_X'])
+                    ne_lat = float(region.iloc[0]['max_Y'])
+                    ne_lon = float(region.iloc[0]['max_X'])
+                else:
+                    return jsonify({'success': False, 'error': 'Region not found'}), 404
+            else:
+                return jsonify({'success': False, 'error': 'Ocean regions not loaded'}), 500
+        else:
+            # Use manual bounds
+            sw_lat = float(data.get('sw_lat'))
+            sw_lon = float(data.get('sw_lon'))
+            ne_lat = float(data.get('ne_lat'))
+            ne_lon = float(data.get('ne_lon'))
+        
         limit = int(data.get('limit', 0))
         
         bbox = f"{sw_lat},{sw_lon};{ne_lat},{ne_lon}"
@@ -261,16 +317,23 @@ def get_vessels_in_area():
         
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
-        data = response.json()
+        api_data = response.json()
         
         filtered_reports = []
-        for report in data.get('reports', []):
+        for report in api_data.get('reports', []):
             vessel_type = report.get('vesselType')
             if vessel_type not in ['CARGO_SHIP', 'TANKER']:
                 continue
                 
             point = report.get('point', {})
-            if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
+            lat = point.get('latitude', 0)
+            lon = point.get('longitude', 0)
+            
+            if lat == 0.0 or lon == 0.0:
+                continue
+            
+            # STRICT: Verify ship is within bounds
+            if not (sw_lat <= lat <= ne_lat and sw_lon <= lon <= ne_lon):
                 continue
             
             filtered_report = {
@@ -295,11 +358,157 @@ def get_vessels_in_area():
         return jsonify({
             'success': True,
             'count': len(filtered_reports),
-            'vessels': filtered_reports
+            'vessels': filtered_reports,
+            'bounds': {
+                'sw_lat': sw_lat,
+                'sw_lon': sw_lon,
+                'ne_lat': ne_lat,
+                'ne_lon': ne_lon
+            }
         })
         
     except Exception as e:
         print(f"Error fetching vessels: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Add new endpoint for disasters in area
+@app.route('/api/disasters_in_area', methods=['POST'])
+def get_disasters_in_area():
+    try:
+        data = request.json
+        sw_lat = float(data.get('sw_lat'))
+        sw_lon = float(data.get('sw_lon'))
+        ne_lat = float(data.get('ne_lat'))
+        ne_lon = float(data.get('ne_lon'))
+        
+        # Get all current disasters
+        disaster_events = parse_gdacs_rss()
+        
+        # Get ships in the area first
+        bbox = f"{sw_lat},{sw_lon};{ne_lat},{ne_lon}"
+        url = "https://ais.marineplan.com/location/2/locations.json"
+        params = {
+            'area': bbox,
+            'moving': 1,
+            'maxage': 1800,
+            'source': 'AIS',
+            'key': Config.MARINEPLAN_API_KEY
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        api_data = response.json()
+        
+        # Extract ship positions
+        ship_positions = []
+        for report in api_data.get('reports', []):
+            point = report.get('point', {})
+            lat = point.get('latitude', 0)
+            lon = point.get('longitude', 0)
+            if lat != 0.0 and lon != 0.0:
+                ship_positions.append((lat, lon))
+        
+        # Filter disasters that contain at least one ship
+        disasters_with_ships = []
+        for disaster in disaster_events:
+            if not disaster.get('is_current', False):
+                continue
+                
+            has_ship_in_disaster = False
+            
+            # Check if any ship is in this disaster's bbox
+            if disaster.get('bbox'):
+                bbox = disaster['bbox']
+                for ship_lat, ship_lon in ship_positions:
+                    if (bbox['lat_min'] <= ship_lat <= bbox['lat_max'] and
+                        bbox['lon_min'] <= ship_lon <= bbox['lon_max']):
+                        has_ship_in_disaster = True
+                        break
+            
+            if has_ship_in_disaster:
+                disasters_with_ships.append(disaster)
+        
+        # Get ships for disasters that have bounding boxes
+        disasters_with_ship_data = get_ships_for_disasters(disasters_with_ships, Config.MARINEPLAN_API_KEY)
+        
+        return jsonify({
+            'success': True,
+            'count': len(disasters_with_ships),
+            'disasters': disasters_with_ships,
+            'ships': disasters_with_ship_data
+        })
+        
+    except Exception as e:
+        print(f"Error getting disasters: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Add new endpoint for ECA/MPA in area
+@app.route('/api/eca_mpa_in_area', methods=['POST'])
+def get_eca_mpa_in_area():
+    try:
+        data = request.json
+        sw_lat = float(data.get('sw_lat'))
+        sw_lon = float(data.get('sw_lon'))
+        ne_lat = float(data.get('ne_lat'))
+        ne_lon = float(data.get('ne_lon'))
+        
+        # Get ships in the area first
+        bbox = f"{sw_lat},{sw_lon};{ne_lat},{ne_lon}"
+        url = "https://ais.marineplan.com/location/2/locations.json"
+        params = {
+            'area': bbox,
+            'moving': 1,
+            'maxage': 1800,
+            'source': 'AIS',
+            'key': Config.MARINEPLAN_API_KEY
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        api_data = response.json()
+        
+        # Extract ship positions as Points
+        from shapely.geometry import Point
+        ship_points = []
+        for report in api_data.get('reports', []):
+            point = report.get('point', {})
+            lat = point.get('latitude', 0)
+            lon = point.get('longitude', 0)
+            if lat != 0.0 and lon != 0.0:
+                ship_points.append(Point(lon, lat))  # Note: shapely uses (lon, lat)
+        
+        eca_mpa_with_ships = []
+        if hasattr(fast_eca_mpa, 'loaded') and fast_eca_mpa.loaded and len(ship_points) > 0:
+            try:
+                # Create a box path for the area
+                area_coords = [
+                    [sw_lat, sw_lon],
+                    [sw_lat, ne_lon],
+                    [ne_lat, ne_lon],
+                    [ne_lat, sw_lon],
+                    [sw_lat, sw_lon]
+                ]
+                all_eca_mpa = fast_eca_mpa.check_route_intersections(area_coords)
+                
+                # Filter to only areas that contain at least one ship
+                for area in all_eca_mpa:
+                    area_geometry = area['geometry']
+                    for ship_point in ship_points:
+                        if area_geometry.contains(ship_point):
+                            eca_mpa_with_ships.append(area)
+                            break  # Found a ship, move to next area
+                
+            except Exception as e:
+                print(f"Error checking ECA/MPA in area: {e}")
+        
+        return jsonify({
+            'success': True,
+            'count': len(eca_mpa_with_ships),
+            'eca_mpa': get_intersection_geojson(eca_mpa_with_ships) if eca_mpa_with_ships else None
+        })
+        
+    except Exception as e:
+        print(f"Error getting ECA/MPA: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/collisions/<disaster_gdacs_id>')
