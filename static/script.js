@@ -33,9 +33,50 @@ const tileLayers = {
     })
 };
 
+// First, add the layer control (will appear on top)
+const layerControl = L.control.layers(tileLayers, null, {
+    position: 'topright'
+}).addTo(map);
+
+// Add default tile layer
 tileLayers["OpenStreetMap"].addTo(map);
-// Add layer control
-L.control.layers(tileLayers, null, {position: 'topright'}).addTo(map);
+
+// Then add metadata icon (will appear below layer control)
+const metadataControl = L.control({position: 'topright'});
+
+metadataControl.onAdd = function(map) {
+    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+    div.innerHTML = `
+        <a href="/demo_map" target="_blank" 
+           style="display: flex; align-items: center; justify-content: center;
+                  width: 36px; height: 36px; 
+                  background: white; border-radius: 6px;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                  transition: all 0.2s ease;
+                  color: #0066cc; text-decoration: none;"
+           title="View Demo Map with Explanations"
+           onmouseover="this.style.transform='scale(1.1)'; this.style.background='#f8f9fa';"
+           onmouseout="this.style.transform='scale(1)'; this.style.background='white';">
+            <i class="fas fa-info-circle" style="font-size: 20px;"></i>
+        </a>
+    `;
+    return div;
+};
+
+// Add metadata control to map
+metadataControl.addTo(map);
+
+// Minimal spacing CSS
+const style = document.createElement('style');
+style.textContent = `
+    .leaflet-control-custom {
+        margin-top: 5px !important; /* Just enough to clear the layer control button */
+    }
+    .leaflet-control-custom a:hover {
+        box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    }
+`;
+document.head.appendChild(style);
 
 // Set view with bounds to prevent extreme zoom
 map.options.minZoom = 2;
@@ -46,6 +87,8 @@ let routeLayer = null;
 let disasterMarkers = [];
 let portMarkers = [];
 let shipMarkers = [];
+let collisionLines = [];
+window.currentRouteCollisions = [];
 
 // Alert color mapping
 const alertColorMap = {
@@ -55,16 +98,12 @@ const alertColorMap = {
     'Unknown': '#888888'
 };
 
-// Vessel tracking variables
-let vesselTrackMarkers = [];
-let vesselTrackData = [];
-
 // Layer visibility management
 let layerVisibility = {
     disasters: true,
     congestion: true,
-    protected: true,
-    vessels: true
+    protected: true
+    // vessels: true REMOVED
 };
 
 // Load water bodies on page load
@@ -246,23 +285,54 @@ function clearMapLayers() {
     // Clear stored route bounds
     window.currentRouteBounds = null;
 
+    if (window.collisionLines) {
+        window.collisionLines.forEach(line => {
+            if (map.hasLayer(line)) {
+                map.removeLayer(line);
+            }
+        });
+        window.collisionLines = [];
+    }
+    
+    // Clear collision data
+    window.currentRouteCollisions = [];
+
     // Add to clearMapLayers function
-if (window.piracyMarkers) {
-    window.piracyMarkers.forEach(marker => {
-        if (map.hasLayer(marker)) {
-            map.removeLayer(marker);
-        }
-    });
-    window.piracyMarkers = [];
+    if (window.piracyMarkers) {
+        window.piracyMarkers.forEach(marker => {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
+            }
+        });
+        window.piracyMarkers = [];
+    }
 }
 
-}
-
-// Function to create ship markers
+// Function to create ship markers (FOR DISASTER AREA SHIPS - KEEP)
 function createShipMarker(ship) {
     const vesselType = ship.vesselType || 'UNKNOWN';
     
-    // Correct color assignment - CARGO_SHIP = BLUE, TANKER = ORANGE
+    // Format vessel type: CARGO_SHIP -> Cargo Ship, TANKER -> Tanker
+    let formattedVesselType = vesselType;
+    if (vesselType === 'CARGO_SHIP') {
+        formattedVesselType = 'Cargo Ship';
+    } else if (vesselType === 'TANKER') {
+        formattedVesselType = 'Tanker';
+    } else if (vesselType.includes('_')) {
+        // For any other types with underscores
+        formattedVesselType = vesselType.toLowerCase()
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, char => char.toUpperCase());
+    }
+    
+    // Clean up ship name - replace underscores with spaces
+    const rawShipName = ship.boatName || 'Unknown Vessel';
+    const cleanShipName = rawShipName.replace(/_/g, ' ').trim();
+    
+    // Clean up destination
+    const rawDestination = ship.destinationName || 'Unknown';
+    const cleanDestination = rawDestination.replace(/_/g, ' ').trim();
+    
     let shipColor = '#2196F3'; // Default blue for cargo ships
     
     if (vesselType === 'TANKER') {
@@ -292,10 +362,10 @@ function createShipMarker(ship) {
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
             <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
-                ${ship.boatName || 'Unknown Vessel'}
+                ${cleanShipName}
             </h3>
             <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
-                ${ship.vesselType || 'Unknown Type'}                
+                ${formattedVesselType}
             </p>
         </div>
         
@@ -420,7 +490,9 @@ function createDisasterMarker(disaster) {
     
     const disasterIcon = L.divIcon({
         className: `disaster-icon-${alertLevel.toLowerCase()}`,
-        html: `<i class="fas fa-exclamation-triangle" style="color: white; font-size: 14px; line-height: 26px;"></i>`,
+        html: `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                   <i class="fas fa-exclamation-triangle" style="color: white; font-size: 14px;"></i>
+               </div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -16]
@@ -604,7 +676,7 @@ function addDisasterMarkers(disasters, routeBounds = null) {
     });
 }
 
-// Function to add ship markers
+// Function to add ship markers (FOR DISASTER AREA SHIPS - KEEP)
 function addShipMarkers(shipsData, routeBounds = null) {
     if (!shipsData) return;
     
@@ -710,17 +782,21 @@ function addEcaMpaAreas(ecaMpaData) {
             }
         },
         onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.name) {
-                let popupContent = `<strong>${feature.properties.type} Area</strong><br>`;
-                popupContent += `Name: ${feature.properties.name}<br>`;
-                
-                if (feature.properties.description) {
-                    popupContent += `Description: ${feature.properties.description}`;
-                }
-                
-                layer.bindPopup(popupContent);
+        if (feature.properties && feature.properties.name) {
+            // Clean up the name
+            const rawName = feature.properties.name;
+            const cleanName = rawName.replace(/_/g, ' ').trim();
+            
+            let popupContent = `<strong>${feature.properties.type} Area</strong><br>`;
+            popupContent += `Name: ${cleanName}<br>`;  // Use cleaned name
+            
+            if (feature.properties.description) {
+                popupContent += `Description: ${feature.properties.description}`;
             }
+            
+            layer.bindPopup(popupContent);
         }
+    }
     });
 
     if (layerVisibility.protected) {
@@ -736,7 +812,11 @@ function addCollisionLines(collisionsData) {
     
     // Remove existing collision lines
     if (window.collisionLines) {
-        window.collisionLines.forEach(line => map.removeLayer(line));
+        window.collisionLines.forEach(line => {
+            if (map.hasLayer(line)) {
+                map.removeLayer(line);
+            }
+        });
     }
     window.collisionLines = [];
 
@@ -764,7 +844,6 @@ function addCollisionLines(collisionsData) {
             dashArray: '5, 5'
         });
 
-        // Popup content
         const popupContent = `
             <div style="font-family: Arial, sans-serif; min-width: 250px;">
                 <div style="background: #ff0000; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
@@ -861,7 +940,6 @@ function debugCollisionData(shipsData) {
     console.log("🔍 === COLLISION DEBUG END ===\n");
 }
 
-// Function to check collisions for all disaster areas
 function checkAllDisasterCollisions(shipsData) {
     console.log("🚨 === COLLISION DETECTION STARTED ===");
     
@@ -920,17 +998,110 @@ function checkAllDisasterCollisions(shipsData) {
                         console.log("🎨 Drawing collision lines...");
                         addCollisionLines(allCollisions);
                         
-                        // Add collision alert to sidebar
+                        // Add collision alert as dropdown to sidebar
                         const disasterAlerts = document.getElementById('disaster-alerts');
                         const alert = document.createElement('div');
                         alert.className = 'alert-box';
                         alert.style.backgroundColor = '#fff3cd';
                         alert.style.borderLeftColor = '#ff9900';
                         alert.style.color = '#856404';
-                        alert.innerHTML = `<strong>🚨 Collision Alert!</strong> ${allCollisions.length} potential collision(s) detected in disaster areas`;
+                        alert.style.cursor = 'pointer';
+                        alert.style.position = 'relative';
+
+                        // Alert header (clickable)
+                        const alertHeader = document.createElement('div');
+                        alertHeader.onclick = function() { toggleCollisionDropdown(); };
+                        alertHeader.style.cssText = `
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-start;
+                            padding-right: 5px;
+                            gap: 10px;
+                        `;
+                        alertHeader.innerHTML = `
+                            <div style="flex: 1;">
+                                <strong>🚨 Collision Alert!</strong> ${allCollisions.length} potential collision(s) detected in disaster areas
+                            </div>
+                            <i id="collision-dropdown-icon" class="fas fa-chevron-down" style="font-size: 14px; flex-shrink: 0; margin-left: 10px;"></i>
+                        `;
+
+                        // Dropdown content (initially hidden)
+                        const dropdownContent = document.createElement('div');
+                        dropdownContent.id = 'collision-dropdown-content';
+                        dropdownContent.style.display = 'none';
+                        dropdownContent.style.marginTop = '15px';
+                        dropdownContent.style.paddingTop = '15px';
+                        dropdownContent.style.borderTop = '1px solid rgba(133, 100, 4, 0.3)';
+
+                        let html = '';
+                        allCollisions.forEach((collision, index) => {
+                            const vesselA = collision.vessel_a;
+                            const vesselB = collision.vessel_b;
+                            
+                            html += `
+                                <div onclick="event.stopPropagation(); goToCollision(${index})" style="background: linear-gradient(135deg, #ff1744 0%, #f50057 100%); 
+                                    border: 2px solid #ff5252; padding: 12px; margin-bottom: 12px; border-radius: 8px; 
+                                    cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(255, 23, 68, 0.3);">
+                                    
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <div style="font-weight: 700; color: #ffffff; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+                                            <i class="fas fa-exclamation-triangle"></i> Collision ${index + 1}
+                                        </div>
+                                        <div style="background: #ffffff; color: #ff1744; padding: 4px 12px; border-radius: 20px; 
+                                            font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                            CRITICAL
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="font-size: 13px; color: #ffffff; line-height: 1.6; font-weight: 500;">
+                                        <div style="margin-bottom: 6px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                            border-radius: 6px; backdrop-filter: blur(10px);">
+                                            <strong style="color: #ffeb3b;">Vessel A:</strong> ${vesselA.name}
+                                        </div>
+                                        <div style="margin-bottom: 8px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                            border-radius: 6px; backdrop-filter: blur(10px);">
+                                            <strong style="color: #ffeb3b;">Vessel B:</strong> ${vesselB.name}
+                                        </div>
+                                        
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; 
+                                            padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
+                                            <div>
+                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                                    CPA DISTANCE
+                                                </div>
+                                                <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                                    ${collision.cpa_km.toFixed(3)} km
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                                    TIME TO CPA
+                                                </div>
+                                                <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                                    ${collision.tcpa_minutes.toFixed(1)} min
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 10px; text-align: center; color: #ffeb3b; font-size: 12px; 
+                                        font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                                        <i class="fas fa-map-marker-alt"></i> Click to view on map
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        dropdownContent.innerHTML = html;
+
+                        alert.appendChild(alertHeader);
+                        alert.appendChild(dropdownContent);
                         disasterAlerts.appendChild(alert);
+
+                        // Store collisions globally for navigation
+                        window.currentRouteCollisions = allCollisions;
                         
-                        console.log("✅ Collision alert added to sidebar");
+                        console.log("✅ Collision alert dropdown added to sidebar");
                     } else {
                         console.log("➖ No collisions to display");
                     }
@@ -951,6 +1122,41 @@ function checkAllDisasterCollisions(shipsData) {
     });
     
     console.log("🚨 === COLLISION DETECTION INITIATED ===");
+}
+
+// Function to toggle collision dropdown
+function toggleCollisionDropdown() {
+    const content = document.getElementById('collision-dropdown-content');
+    const icon = document.getElementById('collision-dropdown-icon');
+    
+    if (content && icon) {
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            content.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+}
+
+// Function to navigate to collision on map (for route collisions)
+function goToCollision(index) {
+    if (window.currentRouteCollisions && index >= 0 && index < window.currentRouteCollisions.length) {
+        const collision = window.currentRouteCollisions[index];
+        const vesselA = collision.vessel_a;
+        const vesselB = collision.vessel_b;
+        
+        const centerLat = (vesselA.lat + vesselB.lat) / 2;
+        const centerLon = (vesselA.lon + vesselB.lon) / 2;
+        
+        map.setView([centerLat, centerLon], 10);
+        
+        // Open the collision line popup if available
+        if (window.collisionLines && window.collisionLines[index]) {
+            window.collisionLines[index].openPopup();
+        }
+    }
 }
 
 // Helper function to calculate distance between points
@@ -1266,247 +1472,6 @@ function addPiracyMarkers(piracyData, routeBounds = null) {
     });
 }
 
-// Function to create vessel marker for tracking
-function createVesselTrackMarker(vessel) {
-    const vesselType = vessel.vesselType || 'UNKNOWN';
-    const isTanker = vesselType === 'TANKER';
-    const iconColor = isTanker ? '#FF9800' : '#2196F3';
-    
-    // Use same simple icon style as disaster ships
-    const vesselIcon = L.divIcon({
-        className: 'ship-marker-simple',
-        html: `<i class="fas fa-ship" style="font-size: 14px; color: ${iconColor};"></i>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-        popupAnchor: [0, -10]
-    });
-    
-    // Format data for display (same as createShipMarker)
-    const formattedSpeed = vessel.speedKmh ? `${vessel.speedKmh} km/h` : 'N/A';
-    const formattedBearing = vessel.bearingDeg ? `${vessel.bearingDeg}°` : 'N/A';
-    const formattedDraught = vessel.draughtMeters ? `${vessel.draughtMeters}m` : 'N/A';
-    const formattedDimensions = vessel.lengthMeters && vessel.widthMeters ? 
-        `${vessel.lengthMeters}m × ${vessel.widthMeters}m` : 'N/A';
-    const formattedPosition = vessel.point ? 
-        `${vessel.point.latitude?.toFixed(4) || 'N/A'}, ${vessel.point.longitude?.toFixed(4) || 'N/A'}` : 'N/A';
-    
-    const popupHtml = `
-        <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
-                    ${vessel.boatName || 'Unknown Vessel'}
-                </h3>
-                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
-                    ${vessel.vesselType || 'Unknown Type'}
-                </p>
-            </div>
-            
-            <!-- Basic Info Section -->
-            <div style="margin-bottom: 12px;">
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                        <i class="fas fa-fingerprint"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
-                        <div style="color: #2d3748; font-size: 13px;">${vessel.mmsi || 'N/A'}</div>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                        <i class="fas fa-flag"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Flag</div>
-                        <div style="color: #2d3748; font-size: 13px;">${vessel.country || 'N/A'}</div>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                        <i class="fas fa-map-marker-alt"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
-                        <div style="color: #2d3748; font-size: 13px;">${vessel.destinationName || 'Unknown'}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Position & Dimensions Section -->
-            <div style="margin-bottom: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                        <i class="fas fa-location-dot"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Position</div>
-                        <div style="color: #2d3748; font-size: 13px;">${formattedPosition}</div>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                    <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                        <i class="fas fa-ruler-combined"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
-                        <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Navigation Data Section - Horizontal Layout -->
-            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
-                    <!-- Speed -->
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            <i class="fas fa-gauge-high" style="color: #2196F3; font-size: 10px;"></i>
-                            Speed
-                        </div>
-                        <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedSpeed}</div>
-                    </div>
-                    
-                    <!-- Bearing -->
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            <i class="fas fa-compass" style="color: #2196F3; font-size: 10px;"></i>
-                            Bearing
-                        </div>
-                        <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedBearing}</div>
-                    </div>
-                    
-                    <!-- Draught -->
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            <i class="fas fa-water" style="color: #2196F3; font-size: 10px;"></i>
-                            Draught
-                        </div>
-                        <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedDraught}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Additional Info (if available) -->
-            ${vessel.imo ? `
-            <div style="margin-top: 10px; padding: 8px; background: #e8f5e8; border-radius: 4px; border-left: 3px solid #4CAF50;">
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                    <div style="color: #4CAF50; font-size: 12px; width: 20px;">
-                        <i class="fas fa-id-card"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">IMO Number</div>
-                        <div style="color: #2d3748; font-size: 13px;">${vessel.imo}</div>
-                    </div>
-                </div>
-            </div>
-            ` : ''}
-            ${createWeatherSection(vessel.point.latitude, vessel.point.longitude).outerHTML}
-        </div>
-    `;
-    
-    const marker = L.marker([vessel.point.latitude, vessel.point.longitude], {icon: vesselIcon})
-        .bindPopup(popupHtml);
-    
-    return marker;
-}
-
-// Function to clear vessel track markers
-function clearVesselTrackMarkers() {
-    vesselTrackMarkers.forEach(marker => {
-        if (map.hasLayer(marker)) {
-            map.removeLayer(marker);
-        }
-    });
-    vesselTrackMarkers = [];
-    vesselTrackData = [];
-    
-    // Hide vessel count display
-    document.getElementById('vessel-count').style.display = 'none';
-}
-
-// Function to show all vessels in current map bounds
-function showVesselsInArea() {
-    const limit = parseInt(document.getElementById('vessel-limit').value) || 0;
-    
-    // Get current map bounds
-    const bounds = map.getBounds();
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    
-    // Clear existing vessel markers
-    clearVesselTrackMarkers();
-    
-    // Show loading
-    const btn = document.getElementById('show-vessels-btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-    btn.disabled = true;
-    
-    // Fetch vessels
-    fetch('/api/vessels_in_area', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            sw_lat: sw.lat,
-            sw_lon: sw.lng,
-            ne_lat: ne.lat,
-            ne_lon: ne.lng,
-            limit: limit
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.vessels && data.vessels.length > 0) {
-            vesselTrackData = data.vessels;
-            
-            // Add markers to map
-            data.vessels.forEach(vessel => {
-                const marker = createVesselTrackMarker(vessel);
-                marker.addTo(map);
-                vesselTrackMarkers.push(marker);
-            });
-            
-            // Show vessel count
-            const countDiv = document.getElementById('vessel-count');
-            const countText = document.getElementById('vessel-count-text');
-            countText.textContent = `Showing ${data.count} vessel${data.count !== 1 ? 's' : ''} in area`;
-            countDiv.style.display = 'block';
-            
-            console.log(`Added ${data.count} vessels to map`);
-        } else {
-            alert('No vessels found in this area or error occurred.');
-        }
-        
-        // Reset button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    })
-    .catch(error => {
-        console.error('Error fetching vessels:', error);
-        alert('Failed to fetch vessels. Please try again.');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    });
-}
-
-// Function to toggle vessel track markers
-function toggleVesselTrackMarkers(visible) {
-    layerVisibility.vessels = visible;
-    vesselTrackMarkers.forEach(marker => {
-        if (visible) {
-            if (!map.hasLayer(marker)) marker.addTo(map);
-        } else {
-            if (map.hasLayer(marker)) map.removeLayer(marker);
-        }
-    });
-}
-
 // Function to toggle layer visibility
 function toggleLayerVisibility(layerType, visible) {
     layerVisibility[layerType] = visible;
@@ -1542,9 +1507,9 @@ function toggleLayerVisibility(layerType, visible) {
             }
             break;
             
-        case 'vessels':
-            toggleVesselTrackMarkers(visible);
-            break;
+        // case 'vessels': REMOVED
+        //     toggleVesselTrackMarkers(visible);
+        //     break;
     }
 }
 
@@ -1655,10 +1620,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add click event listener to the button
     toggleButton.addEventListener('click', toggleLegend);
     
-    // Add event listener for show vessels button
-    document.getElementById('show-vessels-btn').addEventListener('click', showVesselsInArea);
-    
-    // Add event listeners for toggle controls
+    // Add event listeners for toggle controls (REMOVED vessel tracking)
     document.getElementById('toggle-disasters').addEventListener('change', function() {
         toggleLayerVisibility('disasters', this.checked);
     });
@@ -1671,9 +1633,7 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleLayerVisibility('protected', this.checked);
     });
 
-    document.getElementById('toggle-vessels').addEventListener('change', function() {
-        toggleLayerVisibility('vessels', this.checked);
-    });
+    // REMOVED: document.getElementById('toggle-vessels').addEventListener('change', function() { ... });
 });
 
 // Calculate route button click
@@ -1685,9 +1645,8 @@ document.getElementById('calculate-route').addEventListener('click', function() 
     document.getElementById('loading').style.display = 'block';
     document.getElementById('route-info').style.display = 'none';
     
-    // Clear previous route and markers
+    // Clear previous route and markers (but NOT vessel tracking - removed)
     clearMapLayers();
-    clearVesselTrackMarkers();
     
     // Calculate route
     fetch('/api/route', {
@@ -1750,8 +1709,8 @@ document.getElementById('calculate-route').addEventListener('click', function() 
         document.getElementById('route-info').style.display = 'block';
         // Show visibility controls
         document.getElementById('visibility-controls').style.display = 'block';
-        // Show vessel controls
-        document.getElementById('vessel-controls').style.display = 'block';
+        // REMOVED: Show vessel controls
+        // document.getElementById('vessel-controls').style.display = 'block';
         
                 // Draw route on map if coordinates are available
         if (data.route.coordinates && data.route.coordinates.length > 0) {
@@ -1862,7 +1821,7 @@ document.getElementById('calculate-route').addEventListener('click', function() 
             addDisasterMarkers(data.route.disasters, window.currentRouteBounds);
         }
         
-        // Add ship markers if available
+        // Add ship markers if available (DISASTER AREA SHIPS - KEEP)
         if (data.ships) {
             addShipMarkers(data.ships, window.currentRouteBounds);
         }

@@ -13,16 +13,86 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
 }).addTo(map);
 
+// Add multiple backup tile providers
+const tileLayers = {
+    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    }),
+    "OpenSeaMap": L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+        attribution: 'Map data: &copy; OpenSeaMap contributors',
+        maxZoom: 18
+    }),
+    "ESRI Ocean": L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri Ocean Base',
+        maxZoom: 16
+    }),
+    "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
+        maxZoom: 20
+    })
+};
+
+// First, add the layer control (will appear on top)
+const layerControl = L.control.layers(tileLayers, null, {
+    position: 'topright'
+}).addTo(map);
+
+// Add default tile layer
+tileLayers["OpenStreetMap"].addTo(map);
+
+// Then add metadata icon (will appear below layer control)
+const metadataControl = L.control({position: 'topright'});
+
+metadataControl.onAdd = function(map) {
+    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+    div.innerHTML = `
+        <a href="/demo_map" target="_blank" 
+           style="display: flex; align-items: center; justify-content: center;
+                  width: 36px; height: 36px; 
+                  background: white; border-radius: 6px;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                  transition: all 0.2s ease;
+                  color: #0066cc; text-decoration: none;"
+           title="View Demo Map with Explanations"
+           onmouseover="this.style.transform='scale(1.1)'; this.style.background='#f8f9fa';"
+           onmouseout="this.style.transform='scale(1)'; this.style.background='white';">
+            <i class="fas fa-info-circle" style="font-size: 20px;"></i>
+        </a>
+    `;
+    return div;
+};
+
+// Add metadata control to map
+metadataControl.addTo(map);
+
+// Minimal spacing CSS
+const style = document.createElement('style');
+style.textContent = `
+    .leaflet-control-custom {
+        margin-top: 5px !important; /* Just enough to clear the layer control button */
+    }
+    .leaflet-control-custom a:hover {
+        box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    }
+`;
+document.head.appendChild(style);
+
 // Global variables
 let vesselMarkers = [];
 let disasterMarkers = [];
+let disasterShipMarkers = [];
 let collisionLines = [];
+let ecaMpaLayer = null;
+let currentCollisions = [];
+let currentBounds = null; // Store current region bounds
 
 // Visibility state
 let layerVisibility = {
     ships: true,
     disasters: true,
-    collisions: true
+    collisions: true,
+    ecaMpa: true
 };
 
 // Alert color mapping
@@ -32,6 +102,22 @@ const alertColorMap = {
     'Green': '#44ff44',
     'Unknown': '#888888'
 };
+
+// Load ocean regions on page load
+fetch('/api/ocean_regions')
+    .then(response => response.json())
+    .then(regions => {
+        const select = document.getElementById('ocean-region');
+        regions.forEach(region => {
+            const option = document.createElement('option');
+            option.value = region.name;
+            option.textContent = region.name;
+            select.appendChild(option);
+        });
+    })
+    .catch(error => {
+        console.error('Error loading ocean regions:', error);
+    });
 
 // Function to toggle layer visibility
 function toggleLayerVisibility(layerType, visible) {
@@ -56,6 +142,13 @@ function toggleLayerVisibility(layerType, visible) {
                     if (map.hasLayer(marker)) map.removeLayer(marker);
                 }
             });
+            disasterShipMarkers.forEach(marker => {
+                if (visible) {
+                    if (!map.hasLayer(marker)) marker.addTo(map);
+                } else {
+                    if (map.hasLayer(marker)) map.removeLayer(marker);
+                }
+            });
             break;
             
         case 'collisions':
@@ -66,6 +159,17 @@ function toggleLayerVisibility(layerType, visible) {
                     if (map.hasLayer(line)) map.removeLayer(line);
                 }
             });
+            break;
+            
+        case 'ecaMpa':
+            if (ecaMpaLayer) {
+                if (visible) {
+                    if (!map.hasLayer(ecaMpaLayer)) ecaMpaLayer.addTo(map);
+                } else {
+                    if (map.hasLayer(ecaMpaLayer)) map.removeLayer(ecaMpaLayer);
+                }
+            }
+            break;
     }
 }
 
@@ -87,6 +191,13 @@ function clearDisasterMarkers() {
         }
     });
     disasterMarkers = [];
+    
+    disasterShipMarkers.forEach(marker => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    });
+    disasterShipMarkers = [];
 }
 
 // Function to clear collision lines
@@ -97,15 +208,47 @@ function clearCollisionLines() {
         }
     });
     collisionLines = [];
+    currentCollisions = [];
+    
+    // Hide collision list
+    document.getElementById('collision-list-container').style.display = 'none';
+}
+
+// Function to clear ECA/MPA layer
+function clearEcaMpaLayer() {
+    if (ecaMpaLayer) {
+        if (map.hasLayer(ecaMpaLayer)) {
+            map.removeLayer(ecaMpaLayer);
+        }
+        ecaMpaLayer = null;
+    }
 }
 
 // Function to create ship marker
 function createShipMarker(ship) {
     const vesselType = ship.vesselType || 'UNKNOWN';
-    let shipColor = '#2196F3'; // Default blue for cargo ships
+    
+    let formattedVesselType = vesselType;
+    if (vesselType === 'CARGO_SHIP') {
+        formattedVesselType = 'Cargo Ship';
+    } else if (vesselType === 'TANKER') {
+        formattedVesselType = 'Tanker';
+    } else if (vesselType.includes('_')) {
+        formattedVesselType = vesselType.toLowerCase()
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, char => char.toUpperCase());
+    }
+    
+    const rawShipName = ship.boatName || 'Unknown Vessel';
+    const cleanShipName = rawShipName.replace(/_/g, ' ').trim();
+    
+    const rawDestination = ship.destinationName || 'Unknown';
+    const cleanDestination = rawDestination.replace(/_/g, ' ').trim();
+    
+    let shipColor = '#2196F3';
     
     if (vesselType === 'TANKER') {
-        shipColor = '#FF9800'; // Orange for tankers
+        shipColor = '#FF9800';
     }
     
     const shipIcon = L.divIcon({
@@ -128,10 +271,10 @@ function createShipMarker(ship) {
     <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
         <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
             <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
-                ${ship.boatName || 'Unknown Vessel'}
+                ${cleanShipName}
             </h3>
             <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">
-                ${ship.vesselType || 'Unknown Type'}                
+                ${formattedVesselType}
             </p>
         </div>
         
@@ -162,7 +305,7 @@ function createShipMarker(ship) {
                 </div>
                 <div>
                     <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.destinationName || 'Unknown'}</div>
+                    <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
                 </div>
             </div>
         </div>
@@ -246,7 +389,9 @@ function createDisasterMarker(disaster) {
     
     const disasterIcon = L.divIcon({
         className: `disaster-icon-${alertLevel.toLowerCase()}`,
-        html: `<i class="fas fa-exclamation-triangle" style="color: white; font-size: 14px; line-height: 26px;"></i>`,
+        html: `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                   <i class="fas fa-exclamation-triangle" style="color: white; font-size: 14px;"></i>
+               </div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -16]
@@ -288,28 +433,8 @@ function createDisasterMarker(disaster) {
                 </div>
             </div>
             
-            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                <div style="background: #f0fff4; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 16px;">📅</span>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">From Date</div>
-                    <div style="color: #2d3748; font-size: 14px;">${disaster.from_date || 'N/A'}</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 8px;">
-                <div style="background: #fffaf0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 16px;">📅</span>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">To Date</div>
-                    <div style="color: #2d3748; font-size: 14px;">${disaster.to_date || 'N/A'}</div>
-                </div>
-            </div>
-            
             <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-                <a href="${disaster.link}" target="_blank" style="display: block; text-align: center; background: #4299e1; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px; transition: background 0.2s;">
+                <a href="${disaster.link}" target="_blank" style="display: block; text-align: center; background: #4299e1; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px;">
                     View Details on GDACS
                 </a>
             </div>
@@ -322,84 +447,482 @@ function createDisasterMarker(disaster) {
     return marker;
 }
 
+// Function to add disaster markers with bounding boxes
+function addDisasterMarkers(disasters) {
+    disasters.forEach(disaster => {
+        const marker = createDisasterMarker(disaster);
+        if (layerVisibility.disasters) {
+            marker.addTo(map);
+        }
+        disasterMarkers.push(marker);
+        
+        // Add bounding box if available
+        if (disaster.bbox && disaster.bbox.lat_min && disaster.bbox.lon_min && 
+            disaster.bbox.lat_max && disaster.bbox.lon_max) {
+            
+            const alertLevel = disaster.alert_level || 'Unknown';
+            const alertColor = alertColorMap[alertLevel] || alertColorMap['Unknown'];
+            
+            const bboxCoords = [
+                [disaster.bbox.lat_min, disaster.bbox.lon_min],
+                [disaster.bbox.lat_min, disaster.bbox.lon_max],
+                [disaster.bbox.lat_max, disaster.bbox.lon_max],
+                [disaster.bbox.lat_max, disaster.bbox.lon_min]
+            ];
+            
+            const bboxPolygon = L.polygon(bboxCoords, {
+                color: alertColor,
+                weight: 2,
+                fillColor: alertColor,
+                fillOpacity: 0.2,
+                dashArray: '5, 5'
+            });
+            
+            if (layerVisibility.disasters) {
+                bboxPolygon.addTo(map);
+            }
+            disasterMarkers.push(bboxPolygon);
+            
+            bboxPolygon.bindPopup(`
+                <div style="text-align: center;">
+                    <strong>Disaster Area: ${disaster.title}</strong><br>
+                    Alert Level: ${disaster.alert_level || 'Unknown'}<br>
+                    Type: ${disaster.event_type}
+                </div>
+            `);
+        }
+    });
+}
+
+// Function to add ships from disaster areas
+function addDisasterShips(shipsData) {
+    if (!shipsData) return;
+    
+    let totalShips = 0;
+    
+    Object.keys(shipsData).forEach(gdacsId => {
+        const disasterShips = shipsData[gdacsId];
+        if (disasterShips && disasterShips.ships) {
+            disasterShips.ships.forEach(ship => {
+                if (ship.point && ship.point.latitude && ship.point.longitude) {
+                    const marker = createShipMarker(ship);
+if (layerVisibility.disasters) {
+marker.addTo(map);
+}
+disasterShipMarkers.push(marker);
+totalShips++;
+}
+});
+}
+});
+console.log(`Added ${totalShips} ships from disaster areas`);
+}
+// Function to add ECA/MPA areas
+function addEcaMpaAreas(ecaMpaData) {
+clearEcaMpaLayer();
+if (!ecaMpaData || !ecaMpaData.features || ecaMpaData.features.length === 0) {
+    return;
+}
+
+console.log(`Adding ${ecaMpaData.features.length} ECA/MPA areas`);
+
+ecaMpaLayer = L.geoJSON(ecaMpaData, {
+    style: function(feature) {
+        if (feature.properties.type === 'ECA') {
+            return {
+                fillColor: '#FFFF00',
+                fillOpacity: 0.3,
+                color: '#FFD700',
+                weight: 2,
+                opacity: 0.7
+            };
+        } else if (feature.properties.type === 'MPA') {
+            return {
+                fillColor: '#FFA500', 
+                fillOpacity: 0.3,
+                color: '#FF8C00',
+                weight: 2,
+                opacity: 0.7
+            };
+        } else {
+            return {
+                fillColor: '#FFFF00',
+                fillOpacity: 0.2,
+                color: '#FFD700', 
+                weight: 1,
+                opacity: 0.5
+            };
+        }
+    },
+    onEachFeature: function(feature, layer) {
+        if (feature.properties && feature.properties.name) {
+            const rawName = feature.properties.name;
+            const cleanName = rawName.replace(/_/g, ' ').trim();
+            
+            let popupContent = `<strong>${feature.properties.type} Area</strong><br>`;
+            popupContent += `Name: ${cleanName}<br>`;
+            
+            if (feature.properties.description) {
+                popupContent += `Description: ${feature.properties.description}`;
+            }
+            
+            layer.bindPopup(popupContent);
+        }
+    }
+});
+
+if (layerVisibility.ecaMpa) {
+    ecaMpaLayer.addTo(map);
+}
+}
 // Function to add collision lines
 function addCollisionLines(collisions) {
-    clearCollisionLines();
-    
-    if (!collisions || collisions.length === 0) return;
-    
-    // Filter to show only CRITICAL collisions
-    const criticalCollisions = collisions.filter(collision => collision.risk_level === 'CRITICAL');
-    
-    console.log(`Showing ${criticalCollisions.length} CRITICAL collisions (filtered from ${collisions.length} total)`);
-    
-    criticalCollisions.forEach(collision => {
-        const vesselA = collision.vessel_a;
-        const vesselB = collision.vessel_b;
-        
-        const collisionLine = L.polyline([
-            [vesselA.lat, vesselA.lon],
-            [vesselB.lat, vesselB.lon]
-        ], {
-            color: '#ff0000',  // ALWAYS RED for critical
-            weight: 4,
-            opacity: 0.9,
-            dashArray: '5, 5'
-        });
+clearCollisionLines();
+if (!collisions || collisions.length === 0) return;
 
-        const popupContent = `
-            <div style="font-family: Arial, sans-serif; min-width: 250px;">
-                <div style="background: #ff0000; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
-                    <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🚨 CRITICAL Collision Alert</h3>
-                </div>
-                
-                <div style="margin-bottom: 12px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Vessel A</div>
-                            <div style="color: #2d3748; font-size: 13px;"><strong>${vesselA.name}</strong></div>
-                            <div style="color: #666; font-size: 11px;">MMSI: ${vesselA.mmsi}</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Vessel B</div>
-                            <div style="color: #2d3748; font-size: 13px;"><strong>${vesselB.name}</strong></div>
-                            <div style="color: #666; font-size: 11px;">MMSI: ${vesselB.mmsi}</div>
-                        </div>
+const criticalCollisions = collisions.filter(collision => collision.risk_level === 'CRITICAL');
+
+console.log(`Showing ${criticalCollisions.length} CRITICAL collisions (filtered from ${collisions.length} total)`);
+
+currentCollisions = criticalCollisions;
+
+criticalCollisions.forEach((collision, index) => {
+    const vesselA = collision.vessel_a;
+    const vesselB = collision.vessel_b;
+    
+    const collisionLine = L.polyline([
+        [vesselA.lat, vesselA.lon],
+        [vesselB.lat, vesselB.lon]
+    ], {
+        color: '#ff0000',
+        weight: 4,
+        opacity: 0.9,
+        dashArray: '5, 5'
+    });
+
+    const popupContent = `
+        <div style="font-family: Arial, sans-serif; min-width: 250px;">
+            <div style="background: #ff0000; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🚨 CRITICAL Collision Alert</h3>
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Vessel A</div>
+                        <div style="color: #2d3748; font-size: 13px;"><strong>${vesselA.name}</strong></div>
+                        <div style="color: #666; font-size: 11px;">MMSI: ${vesselA.mmsi}</div>
                     </div>
-                </div>
-                
-                <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">CPA Distance</div>
-                            <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.cpa_km.toFixed(3)} km</div>
-                            <div style="color: #666; font-size: 11px;">${(collision.cpa_km / 1.852).toFixed(3)} NM</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">TCPA</div>
-                            <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.tcpa_minutes.toFixed(1)} min</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="text-align: center; margin-top: 10px;">
-                    <div style="background: #ff0000; color: white; padding: 6px 12px; border-radius: 20px; display: inline-block; font-weight: bold;">
-                        CRITICAL RISK
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Vessel B</div>
+                        <div style="color: #2d3748; font-size: 13px;"><strong>${vesselB.name}</strong></div>
+                        <div style="color: #666; font-size: 11px;">MMSI: ${vesselB.mmsi}</div>
                     </div>
                 </div>
             </div>
-        `;
+            
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">CPA Distance</div>
+                        <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.cpa_km.toFixed(3)} km</div>
+                        <div style="color: #666; font-size: 11px;">${(collision.cpa_km / 1.852).toFixed(3)} NM</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #4a5568; font-size: 12px;">TCPA</div>
+                        <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.tcpa_minutes.toFixed(1)} min</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 10px;">
+                <div style="background: #ff0000; color: white; padding: 6px 12px; border-radius: 20px; display: inline-block; font-weight: bold;">
+                    CRITICAL RISK
+                </div>
+            </div>
+        </div>
+    `;
 
-        collisionLine.bindPopup(popupContent);
-        if (layerVisibility.collisions) {
-            collisionLine.addTo(map);
-        }
-        collisionLines.push(collisionLine);
-    });
+    collisionLine.bindPopup(popupContent);
+    collisionLine.collisionIndex = index;
     
-    if (criticalCollisions.length === 0) {
-        showResults('Collision Detection', 'No CRITICAL collision risks detected');
+    if (layerVisibility.collisions) {
+        collisionLine.addTo(map);
     }
+    collisionLines.push(collisionLine);
+});
+
+if (criticalCollisions.length > 0) {
+    displayCollisionList(criticalCollisions);
+} else {
+    showResults('Collision Detection', 'No CRITICAL collision risks detected');
+}
+}
+// Function to display collision list in sidebar
+function displayCollisionList(collisions) {
+    const container = document.getElementById('collision-list-container');
+    const listDiv = document.getElementById('collision-list');
+    let html = '';
+
+    collisions.forEach((collision, index) => {
+        const vesselA = collision.vessel_a;
+        const vesselB = collision.vessel_b;
+        
+        html += `
+            <div onclick="goToCollision(${index})" style="background: linear-gradient(135deg, #ff1744 0%, #f50057 100%); 
+                border: 2px solid #ff5252; padding: 12px; margin-bottom: 12px; border-radius: 8px; 
+                cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(255, 23, 68, 0.3);">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="font-weight: 700; color: #ffffff; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+                        <i class="fas fa-exclamation-triangle" style="animation: pulse 1.5s infinite;"></i> Collision ${index + 1}
+                    </div>
+                    <div style="background: #ffffff; color: #ff1744; padding: 4px 12px; border-radius: 20px; 
+                        font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        CRITICAL
+                    </div>
+                </div>
+                
+                <div style="font-size: 13px; color: #ffffff; line-height: 1.6; font-weight: 500;">
+                    <div style="margin-bottom: 6px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                        border-radius: 6px; backdrop-filter: blur(10px);">
+                        <strong style="color: #ffeb3b;">Vessel A:</strong> ${vesselA.name}
+                    </div>
+                    <div style="margin-bottom: 8px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                        border-radius: 6px; backdrop-filter: blur(10px);">
+                        <strong style="color: #ffeb3b;">Vessel B:</strong> ${vesselB.name}
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; 
+                        padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
+                        <div>
+                            <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                CPA DISTANCE
+                            </div>
+                            <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                ${collision.cpa_km.toFixed(3)} km
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                TIME TO CPA
+                            </div>
+                            <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                ${collision.tcpa_minutes.toFixed(1)} min
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 10px; text-align: center; color: #ffeb3b; font-size: 12px; 
+                    font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                    <i class="fas fa-map-marker-alt"></i> Click to view on map
+                </div>
+            </div>
+        `;
+    });
+
+    listDiv.innerHTML = html;
+    container.style.display = 'block';
+}
+// Function to navigate to collision on map
+function goToCollision(index) {
+if (index >= 0 && index < currentCollisions.length) {
+const collision = currentCollisions[index];
+const vesselA = collision.vessel_a;
+const vesselB = collision.vessel_b;
+    const centerLat = (vesselA.lat + vesselB.lat) / 2;
+    const centerLon = (vesselA.lon + vesselB.lon) / 2;
+    
+    map.setView([centerLat, centerLon], 10);
+    
+    if (collisionLines[index]) {
+        collisionLines[index].openPopup();
+    }
+}
+}
+// Function to toggle collision list visibility
+function toggleCollisionList() {
+const container = document.getElementById('collision-list-container');
+container.style.display = 'none';
+}
+// Function to detect collisions among visible vessels
+function detectCollisions() {
+if (vesselMarkers.length < 2) {
+showResults('Collision Detection', 'Need at least 2 vessels to check for collisions');
+return;
+}
+const vessels = [];
+vesselMarkers.forEach(marker => {
+    const vesselData = marker.options.vesselData;
+    if (vesselData && vesselData.point && vesselData.speedKmh !== undefined && vesselData.bearingDeg !== undefined) {
+        vessels.push({
+            mmsi: vesselData.mmsi || 'Unknown',
+            name: vesselData.boatName || 'Unknown',
+            lat: vesselData.point.latitude,
+            lon: vesselData.point.longitude,
+            speed_kmh: vesselData.speedKmh,
+            bearing_deg: vesselData.bearingDeg
+        });
+    }
+});
+
+fetch('/api/detect_collisions', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ vessels: vessels })
+})
+.then(response => response.json())
+.then(collisions => {
+    if (collisions && collisions.length > 0) {
+        addCollisionLines(collisions);
+        showResults('Collision Detection', `Found ${collisions.length} potential collision(s)`);
+    } else {
+        showResults('Collision Detection', 'No collision risks detected');
+    }
+})
+.catch(error => {
+    console.error('Error detecting collisions:', error);
+    showResults('Collision Detection', 'Error detecting collisions');
+});
+}
+// Function to show all vessels in selected area
+function showAllVessels() {
+const oceanRegion = document.getElementById('ocean-region').value;
+const limitInput = document.getElementById('vessel-limit').value;
+const limit = limitInput ? parseInt(limitInput) : 0;
+clearVesselMarkers();
+clearCollisionLines();
+clearDisasterMarkers();
+clearEcaMpaLayer();
+
+const btn = document.getElementById('show-vessels-btn');
+const originalText = btn.innerHTML;
+btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+btn.disabled = true;
+
+let requestData = { limit: limit };
+
+if (oceanRegion) {
+    requestData.ocean_region = oceanRegion;
+} else {
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    
+    requestData.sw_lat = sw.lat;
+    requestData.sw_lon = sw.lng;
+    requestData.ne_lat = ne.lat;
+    requestData.ne_lon = ne.lng;
+}
+
+fetch('/api/vessels_in_area', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestData)
+})
+.then(response => response.json())
+.then(data => {
+    if (data.success && data.vessels && data.vessels.length > 0) {
+        // Store current bounds
+        currentBounds = data.bounds;
+        
+        // Add vessels
+        data.vessels.forEach(vessel => {
+            const marker = createShipMarker(vessel);
+            marker.options.vesselData = vessel;
+            if (layerVisibility.ships) {
+                marker.addTo(map);
+            }
+            vesselMarkers.push(marker);
+        });
+        
+        // Fit map to bounds if ocean region was selected
+        if (oceanRegion && data.bounds) {
+            map.fitBounds([
+                [data.bounds.sw_lat, data.bounds.sw_lon],
+                [data.bounds.ne_lat, data.bounds.ne_lon]
+            ]);
+        }
+        
+        const countDiv = document.getElementById('vessel-count');
+        const countText = document.getElementById('vessel-count-text');
+        countText.textContent = `${data.count} vessel${data.count !== 1 ? 's' : ''} loaded`;
+        countDiv.style.display = 'block';
+        
+        showResults('Vessel Tracking', `Loaded ${data.count} vessel(s). Use buttons below to check disasters, protected areas, or collisions.`);
+    } else {
+        showResults('Vessel Tracking', 'No vessels found in this area');
+        currentBounds = null;
+    }
+    
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+})
+.catch(error => {
+    console.error('Error fetching vessels:', error);
+    showResults('Vessel Tracking', 'Failed to fetch vessels');
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+});
+}
+
+// Function to check disasters in current area
+function checkDisastersInArea() {
+    if (!currentBounds) {
+        alert('Please load vessels first to set the region');
+        return;
+    }
+    
+    // Show loading indicator
+    showResults('Disaster Areas', '<i class="fas fa-spinner fa-spin"></i> Checking disaster areas...');
+    
+    fetch('/api/disasters_in_area', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(currentBounds)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            clearDisasterMarkers();
+            
+            if (data.disasters && data.disasters.length > 0) {
+                addDisasterMarkers(data.disasters);
+                
+                if (data.ships) {
+                    addDisasterShips(data.ships);
+                }
+                
+                showResults('Disaster Areas', `Found ${data.count} disaster(s) in the region`);
+            } else {
+                showResults('Disaster Areas', 'No disasters found in this region');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching disasters:', error);
+        showResults('Disaster Areas', 'Failed to fetch disasters');
+    });
+}
+
+// Function to check collisions
+function checkCollisions() {
+    if (vesselMarkers.length === 0) {
+        alert('Please load vessels first using "Load Vessels"');
+        return;
+    }
+    
+    // Show loading indicator
+    showResults('Collision Detection', '<i class="fas fa-spinner fa-spin"></i> Detecting collisions...');
+    
+    detectCollisions();
 }
 
 // Function to detect collisions among visible vessels
@@ -409,7 +932,6 @@ function detectCollisions() {
         return;
     }
     
-    // Extract vessel data from markers
     const vessels = [];
     vesselMarkers.forEach(marker => {
         const vesselData = marker.options.vesselData;
@@ -424,8 +946,7 @@ function detectCollisions() {
             });
         }
     });
-    
-    // Send to server for collision detection
+
     fetch('/api/detect_collisions', {
         method: 'POST',
         headers: {
@@ -437,7 +958,7 @@ function detectCollisions() {
     .then(collisions => {
         if (collisions && collisions.length > 0) {
             addCollisionLines(collisions);
-            showResults('Collision Detection', `Found ${collisions.length} collision risk(s)`);
+            showResults('Collision Detection', `Found ${collisions.length} potential collision(s)`);
         } else {
             showResults('Collision Detection', 'No collision risks detected');
         }
@@ -448,154 +969,108 @@ function detectCollisions() {
     });
 }
 
-// Function to show all vessels in current view
-function showAllVessels() {
-    const limit = parseInt(document.getElementById('vessel-limit').value) || 0;
+// Function to check ECA/MPA in current area
+function checkEcaMpaInArea() {
+    if (!currentBounds) {
+        alert('Please load vessels first to set the region');
+        return;
+    }
     
-    const bounds = map.getBounds();
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
+    // Check if there are any vessels loaded
+    if (vesselMarkers.length === 0) {
+        showResults('Protected Areas', 'No vessels in area. Load vessels first to check protected areas.');
+        return;
+    }
     
-    clearVesselMarkers();
-    clearCollisionLines();
+    // Show loading indicator
+    showResults('Protected Areas', '<i class="fas fa-spinner fa-spin"></i> Checking protected areas...');
     
-    const btn = document.getElementById('show-vessels-btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-    btn.disabled = true;
-    
-    fetch('/api/vessels_in_area', {
+    fetch('/api/eca_mpa_in_area', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            sw_lat: sw.lat,
-            sw_lon: sw.lng,
-            ne_lat: ne.lat,
-            ne_lon: ne.lng,
-            limit: limit
-        })
+        body: JSON.stringify(currentBounds)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success && data.vessels && data.vessels.length > 0) {
-            data.vessels.forEach(vessel => {
-                const marker = createShipMarker(vessel);
-                // Store vessel data on marker for later use
-                marker.options.vesselData = vessel;
-                if (layerVisibility.ships) {
-                    marker.addTo(map);
-                }
-                vesselMarkers.push(marker);
-            });
+        if (data.success) {
+            clearEcaMpaLayer();
             
-            const countDiv = document.getElementById('vessel-count');
-            const countText = document.getElementById('vessel-count-text');
-            countText.textContent = `Showing ${data.count} vessel${data.count !== 1 ? 's' : ''}`;
-            countDiv.style.display = 'block';
-            
-            showResults('Vessel Tracking', `Found ${data.count} vessel(s) in view`);
-        } else {
-            showResults('Vessel Tracking', 'No vessels found in this area');
-        }
-        
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    })
-    .catch(error => {
-        console.error('Error fetching vessels:', error);
-        showResults('Vessel Tracking', 'Failed to fetch vessels');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    });
-}
-
-// Function to check disasters
-function checkDisasters() {
-    fetch('/api/disasters')
-    .then(response => response.json())
-    .then(disasters => {
-        clearDisasterMarkers();
-        
-        disasters.forEach(disaster => {
-            const marker = createDisasterMarker(disaster);
-            if (layerVisibility.disasters) {
-                marker.addTo(map);
+            if (data.eca_mpa) {
+                addEcaMpaAreas(data.eca_mpa);
+                showResults('Protected Areas', `Found ${data.count} ECA/MPA area(s) with vessels in the region`);
+            } else {
+                showResults('Protected Areas', 'No ECA/MPA areas with vessels found in this region');
             }
-            disasterMarkers.push(marker);
-        });
-        
-        showResults('Disaster Areas', `Found ${disasters.length} current disaster(s)`);
+        }
     })
     .catch(error => {
-        console.error('Error fetching disasters:', error);
-        showResults('Disaster Areas', 'Failed to fetch disasters');
+        console.error('Error fetching ECA/MPA:', error);
+        showResults('Protected Areas', 'Failed to fetch protected areas');
     });
 }
 
 // Function to check collisions
 function checkCollisions() {
-    if (vesselMarkers.length === 0) {
-        alert('Please load vessels first using "Show All Vessels in View"');
-        return;
-    }
-    
-    detectCollisions();
+if (vesselMarkers.length === 0) {
+alert('Please load vessels first using "Load Vessels"');
+return;
 }
-
+detectCollisions();
+}
 // Function to show results in sidebar
 function showResults(title, content) {
-    document.getElementById('results-title').textContent = title;
-    document.getElementById('results-content').innerHTML = content;
-    document.getElementById('results-container').style.display = 'block';
+document.getElementById('results-title').textContent = title;
+document.getElementById('results-content').innerHTML = content;
+document.getElementById('results-container').style.display = 'block';
 }
-
 // Function to toggle legend
 function toggleLegend() {
-    const legend = document.querySelector('.legend');
-    const button = document.getElementById('legend-toggle-btn');
-    
-    if (legend.style.display === 'none') {
-        legend.style.display = 'block';
-        button.innerHTML = '<i class="fas fa-layer-group"></i>';
-        button.title = 'Hide Legend';
-    } else {
-        legend.style.display = 'none';
-        button.innerHTML = '<i class="fas fa-eye"></i>';
-        button.title = 'Show Legend';
-    }
+const legend = document.querySelector('.legend');
+const button = document.getElementById('legend-toggle-btn');
+if (legend.style.display === 'none') {
+    legend.style.display = 'block';
+    button.innerHTML = '<i class="fas fa-layer-group"></i>';
+    button.title = 'Hide Legend';
+} else {
+    legend.style.display = 'none';
+    button.innerHTML = '<i class="fas fa-eye"></i>';
+    button.title = 'Show Legend';
 }
-
+}
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    const legend = document.querySelector('.legend');
-    const toggleButton = document.getElementById('legend-toggle-btn');
-    
-    if (!legend.style.display) {
-        legend.style.display = 'block';
-    }
-    
-    if (legend.style.display === 'none') {
-        toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
-        toggleButton.title = 'Show Legend';
-    } else {
-        toggleButton.innerHTML = '<i class="fas fa-layer-group"></i>';
-        toggleButton.title = 'Hide Legend';
-    }
-    
-    toggleButton.addEventListener('click', toggleLegend);
-    
-    // Add event listeners for toggle controls
-    document.getElementById('toggle-ships').addEventListener('change', function() {
-        toggleLayerVisibility('ships', this.checked);
-    });
+const legend = document.querySelector('.legend');
+const toggleButton = document.getElementById('legend-toggle-btn');
+if (!legend.style.display) {
+    legend.style.display = 'block';
+}
 
-    document.getElementById('toggle-disasters').addEventListener('change', function() {
-        toggleLayerVisibility('disasters', this.checked);
-    });
+if (legend.style.display === 'none') {
+    toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+    toggleButton.title = 'Show Legend';
+} else {
+    toggleButton.innerHTML = '<i class="fas fa-layer-group"></i>';
+    toggleButton.title = 'Hide Legend';
+}
 
-    document.getElementById('toggle-collisions').addEventListener('change', function() {
-        toggleLayerVisibility('collisions', this.checked);
-    });
+toggleButton.addEventListener('click', toggleLegend);
+
+// Add event listeners for toggle controls
+document.getElementById('toggle-ships').addEventListener('change', function() {
+    toggleLayerVisibility('ships', this.checked);
+});
+
+document.getElementById('toggle-disasters').addEventListener('change', function() {
+    toggleLayerVisibility('disasters', this.checked);
+});
+
+document.getElementById('toggle-eca-mpa').addEventListener('change', function() {
+    toggleLayerVisibility('ecaMpa', this.checked);
+});
+
+document.getElementById('toggle-collisions').addEventListener('change', function() {
+    toggleLayerVisibility('collisions', this.checked);
+});
 });
