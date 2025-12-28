@@ -39,6 +39,11 @@
             margin-right: 10px;
             font-size: 20px;
         }
+
+        @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -52,7 +57,35 @@
             </div>
             
             <div class="vessel-tracking-controls">
-                <!-- Check/Uncheck Controls -->
+                <!-- Ocean Region Selection -->
+                <div style="margin-bottom: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">
+                        <i class="fas fa-globe"></i> Select Ocean Region
+                    </h3>
+                    
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: normal;">Ocean Region:</label>
+                        <select id="ocean-region" style="width: 100%; padding: 8px; border-radius: 4px; background: white; color: #333;">
+                            <option value="">Current Map View</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: normal;">Max Vessels:</label>
+                        <input type="number" id="vessel-limit" placeholder="Leave blank for all" 
+                               style="width: 100%; padding: 8px; border-radius: 4px; background: white; color: #333; border: none;">
+                    </div>
+                    
+                    <button id="show-vessels-btn" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;" onclick="showAllVessels()">
+                        <i class="fas fa-ship"></i> Load Vessels
+                    </button>
+                    
+                    <div id="vessel-count" style="margin-top: 10px; padding: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; text-align: center; display: none;">
+                        <span id="vessel-count-text"></span>
+                    </div>
+                </div>
+                
+                <!-- Visibility Controls -->
                 <div style="margin-bottom: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
                     <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">
                         <i class="fas fa-eye"></i> Visibility Controls
@@ -69,45 +102,44 @@
                     </label>
                     
                     <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-eca-mpa" checked style="width: auto; margin-right: 10px; cursor: pointer;">
+                        <span style="font-weight: normal;">Show Protected Areas</span>
+                    </label>
+                    
+                    <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
                         <input type="checkbox" id="toggle-collisions" checked style="width: auto; margin-right: 10px; cursor: pointer;">
                         <span style="font-weight: normal;">Show Collisions</span>
                     </label>
                 </div>
                 
                 <!-- Action Buttons -->
-                <button class="tracking-option" onclick="checkDisasters()">
+                <button class="tracking-option" onclick="checkDisastersInArea()">
                     <i class="fas fa-exclamation-triangle"></i>
                     Check Disaster Areas
                 </button>
-                
+
+                <button class="tracking-option" onclick="checkEcaMpaInArea()">
+                    <i class="fas fa-shield-alt"></i>
+                    Check Protected Areas
+                </button>
+
                 <button class="tracking-option" onclick="checkCollisions()">
                     <i class="fas fa-crosshairs"></i>
                     Check Collision Risks
                 </button>
-                <div style="margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
-                    <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">
-                        <i class="fas fa-sliders-h"></i> Vessel Tracking Settings
+            </div>
+            
+            <!-- Collision List Panel -->
+            <div id="collision-list-container" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px; max-height: 400px; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.2);">
+                    <h3 style="font-size: 16px; margin: 0;">
+                        <i class="fas fa-exclamation-triangle"></i> Collision Warnings
                     </h3>
-                    
-                    <div style="margin-bottom: 12px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: normal;">Max Vessels to Show:</label>
-                        <select id="vessel-limit" style="width: 100%; padding: 8px; border-radius: 4px; background: white; color: #333;">
-                            <option value="0">No Limit</option>
-                            <option value="10">10 Vessels</option>
-                            <option value="25">25 Vessels</option>
-                            <option value="50">50 Vessels</option>
-                            <option value="100">100 Vessels</option>
-                        </select>
-                    </div>
-                    
-                    <button id="show-vessels-btn" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;" onclick="showAllVessels()">
-                        <i class="fas fa-ship"></i> Show All Vessels
+                    <button onclick="toggleCollisionList()" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 18px;">
+                        <i class="fas fa-times"></i>
                     </button>
-                    
-                    <div id="vessel-count" style="margin-top: 10px; padding: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; text-align: center; display: none;">
-                        <span id="vessel-count-text"></span>
-                    </div>
                 </div>
+                <div id="collision-list" style="font-size: 13px;"></div>
             </div>
             
             <div id="results-container" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
@@ -165,9 +197,22 @@
                         </div>
                         
                         <div class="legend-section">
+                            <h5>Protected Areas</h5>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #FFFF00; border: 2px solid #FFD700;"></div>
+                                <span>ECA (Emission Control)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #FFA500; border: 2px solid #FF8C00;"></div>
+                                <span>MPA (Marine Protected)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="legend-section">
                             <h5>Collision Alerts</h5>
                             <div class="legend-item">
                                 <div class="legend-line" style="background-color: #ff0000; height: 3px;"></div>
+                                <span>Critical Risk</span>
                             </div>
                         </div>
                     </div>

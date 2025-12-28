@@ -61,32 +61,6 @@
             </div>
             
             <button id="calculate-route" disabled>Check Route & Calculate Risks</button>
-            <button id="vessel-tracking-btn" onclick="window.open('/vessel_tracking', '_blank')" style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); margin-top: 10px;">
-            <i class="fas fa-ship"></i> Vessel Tracking
-            </button>
-            
-            <div class="vessel-controls" id="vessel-controls" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
-                <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">Vessel Tracking</h3>
-                
-                <div style="margin-bottom: 12px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: normal;">Max Vessels to Show:</label>
-                    <select id="vessel-limit" style="width: 100%; padding: 8px; border-radius: 4px; background: white; color: #333;">
-                        <option value="0">No Limit</option>
-                        <option value="10">10 Vessels</option>
-                        <option value="25">25 Vessels</option>
-                        <option value="50">50 Vessels</option>
-                        <option value="100">100 Vessels</option>
-                    </select>
-                </div>
-                
-                <button id="show-vessels-btn" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                    <i class="fas fa-ship"></i> Show All Vessels in Area
-                </button>
-                
-                <div id="vessel-count" style="margin-top: 10px; padding: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; text-align: center; display: none;">
-                    <span id="vessel-count-text"></span>
-                </div>
-            </div>
             
             <div class="visibility-controls" id="visibility-controls" style="display: none; margin-top: 20px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;">
                 <h3 style="font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;">Map Layers</h3>
@@ -104,11 +78,6 @@
                 <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
                     <input type="checkbox" id="toggle-protected" checked style="width: auto; margin-right: 10px; cursor: pointer;">
                     <span style="font-weight: normal;">Show Protected Areas (ECA/MPA)</span>
-                </label>
-                
-                <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
-                    <input type="checkbox" id="toggle-vessels" checked style="width: auto; margin-right: 10px; cursor: pointer;">
-                    <span style="font-weight: normal;">Show Vessel Tracking</span>
                 </label>
             </div>
             
