@@ -5,6 +5,8 @@ from ships import get_ships_in_bbox, get_ships_for_disasters, get_ships_near_por
 from eca_mpa import fast_eca_mpa
 from weather_details import get_weather_forecast
 from piracy_tracker import piracy_monitor
+from check_chokepoint import get_chokepoints_on_route
+from port_details import get_port_details_data
 from config import Config
 import threading
 import requests
@@ -66,6 +68,10 @@ def route_planner():
 @app.route('/demo_map')
 def demo_map():
     return render_template('demo_map.html')
+
+@app.route('/port_details')
+def port_details_page():
+    return render_template('port_details.html')
 
 @app.route('/api/water_bodies')
 def get_water_bodies_api():
@@ -149,6 +155,7 @@ def calculate_route():
             return jsonify({'error': 'Failed to calculate route'}), 500
         
         route_coords = get_route_coordinates(route)
+        chokepoints = get_chokepoints_on_route(route_coords)
         
         # RUN ALL SLOW OPERATIONS IN PARALLEL
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -252,7 +259,8 @@ def calculate_route():
                 'length': route.properties['length'],
                 'units': route.properties['units'],
                 'disasters': route_disasters,
-                'eca_mpa_intersections': len(eca_mpa_intersections) > 0
+                'eca_mpa_intersections': len(eca_mpa_intersections) > 0,
+                'chokepoints': chokepoints
             },
             'alert_colors': ALERT_COLORS,
             'ships': disasters_with_ships,
@@ -688,6 +696,94 @@ def detect_collisions_api():
     except Exception as e:
         print(f"Error detecting collisions: {e}")
         return jsonify([])
+
+@app.route('/api/chokepoint_ships', methods=['POST'])
+def get_chokepoint_ships():
+    from ships import calculate_bbox_around_point
+    
+    data = request.json
+    chokepoints = data.get('chokepoints', [])
+
+    if not chokepoints:
+        return jsonify({'ships': {}})
+
+    all_chokepoint_ships = {}
+    
+    for cp in chokepoints:
+        lat = cp.get('lat')
+        lon = cp.get('lon')
+        name = cp.get('name')
+        
+        if lat is None or lon is None:
+            continue
+
+        # Get ALL ships within 10km
+        bbox = calculate_bbox_around_point(lat, lon, 80)
+        
+        url = "https://ais.marineplan.com/location/2/locations.json"
+        params = {
+            'area': bbox,
+            'maxage': 1800,
+            'source': 'AIS',
+            'key': Config.MARINEPLAN_API_KEY
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            api_data = response.json()
+            
+            ships = []
+            for report in api_data.get('reports', []):
+                point = report.get('point', {})
+                if point.get('latitude', 0) == 0.0 or point.get('longitude', 0) == 0.0:
+                    continue
+                
+                ship_info = {
+                    'boatName': report.get('boatName', '').upper(),
+                    'mmsi': report.get('mmsi'),
+                    'country': report.get('country'),
+                    'vesselType': report.get('vesselType'),
+                    'point': point,
+                    'destinationName': report.get('destinationName', '').upper(),
+                    'speedKmh': report.get('speedKmh'),
+                    'bearingDeg': report.get('bearingDeg'),
+                    'draughtMeters': report.get('draughtMeters'),
+                    'lengthMeters': report.get('lengthMeters'),
+                    'widthMeters': report.get('widthMeters'),
+                    'imo': report.get('imo')
+                }
+                ships.append(ship_info)
+            
+            all_chokepoint_ships[name] = ships
+            
+        except Exception as e:
+            print(f"Error fetching ships for {name}: {e}")
+            all_chokepoint_ships[name] = []
+    
+    return jsonify({'ships': all_chokepoint_ships})
+
+@app.route('/api/port_details/<port_code>')
+def get_port_details_api(port_code):
+    """API endpoint for detailed port information."""
+    try:
+        # Use weather function from weather_details module
+        from weather_details import get_weather_forecast
+        
+        result = get_port_details_data(
+            port_df=port_df,
+            port_code=port_code,
+            weather_func=get_weather_forecast
+        )
+        
+        if 'error' in result:
+            return jsonify(result), 404 if 'not found' in str(result).lower() else 500
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Error in port details API: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
