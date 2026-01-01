@@ -7,7 +7,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+        body, h1, h2, h3, h4, h5, h6, p, div:not(.fa):not(.fas):not(.far):not(.fab), span:not(.fa):not(.fas):not(.far):not(.fab), button, input, textarea, select, label, a, td, th, li {
+        font-family: 'Roboto Slab', serif !important;
+            }
+        }
         .vessel-tracking-controls {
             padding: 20px;
             background: linear-gradient(135deg, #1a2a6c, #2b5876);
