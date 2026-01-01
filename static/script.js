@@ -89,6 +89,8 @@ let portMarkers = [];
 let shipMarkers = [];
 let collisionLines = [];
 window.currentRouteCollisions = [];
+let chokepointMarkers = [];
+let chokepointShipMarkers = [];
 
 // Alert color mapping
 const alertColorMap = {
@@ -282,6 +284,26 @@ function clearMapLayers() {
     });
     shipMarkers = [];
     
+    // Clear chokepoint markers and circles
+    if (chokepointMarkers) {
+        chokepointMarkers.forEach(marker => {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
+            }
+        });
+        chokepointMarkers = [];
+    }
+    
+    // Clear chokepoint ships separately
+    if (chokepointShipMarkers) {
+        chokepointShipMarkers.forEach(marker => {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
+            }
+        });
+        chokepointShipMarkers = [];
+    }
+    
     // Clear stored route bounds
     window.currentRouteBounds = null;
 
@@ -297,7 +319,7 @@ function clearMapLayers() {
     // Clear collision data
     window.currentRouteCollisions = [];
 
-    // Add to clearMapLayers function
+    // Clear piracy markers
     if (window.piracyMarkers) {
         window.piracyMarkers.forEach(marker => {
             if (map.hasLayer(marker)) {
@@ -305,6 +327,14 @@ function clearMapLayers() {
             }
         });
         window.piracyMarkers = [];
+    }
+    
+    // Clear ECA/MPA layer
+    if (window.ecaMpaLayer) {
+        if (map.hasLayer(window.ecaMpaLayer)) {
+            map.removeLayer(window.ecaMpaLayer);
+        }
+        window.ecaMpaLayer = null;
     }
 }
 
@@ -1224,6 +1254,123 @@ function addCongestedPortShips(originData, destData) {
     }
 }
 
+function showChokepoints() {
+    // Clear old chokepoint markers and circles ONLY
+    chokepointMarkers.forEach(m => map.removeLayer(m));
+    chokepointMarkers = [];
+    
+    // Clear old chokepoint ships ONLY (not disaster ships)
+    if (chokepointShipMarkers) {
+        chokepointShipMarkers.forEach(m => map.removeLayer(m));
+        chokepointShipMarkers = [];
+    }
+
+    // Update button to show loading
+    const btn = document.getElementById('view-chokepoints-btn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    btn.disabled = true;
+
+    // Fetch ships for all chokepoints
+    fetch('/api/chokepoint_ships', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ chokepoints: window.currentChokepoints })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('All chokepoint ships response:', data);
+        
+        const allShips = data.ships || {};
+        
+        // Now display chokepoints with ships
+        window.currentChokepoints.forEach(cp => {
+            // Create simple bright red circle icon
+            const icon = L.divIcon({
+                className: 'chokepoint-icon',
+                html: `<div style="background: #ff0000; width: 16px; height: 16px; border-radius: 50%; 
+                              border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);"></div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+                popupAnchor: [0, -8]
+            });
+
+            const marker = L.marker([cp.lat, cp.lon], { icon })
+                .addTo(map);
+
+            // Add LARGE red circle (50km radius for visibility)
+            const circle = L.circle([cp.lat, cp.lon], {
+                radius: 80000, // 50km in meters
+                color: '#ff0000',
+                fillColor: '#ff0000',
+                fillOpacity: 0.2,
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+            
+            chokepointMarkers.push(circle);
+            
+            // Get ships for this chokepoint
+            const ships = allShips[cp.name] || [];
+            
+            // Set popup with ship count
+            marker.bindPopup(`
+                <div style="font-family: Arial, sans-serif; min-width: 200px;">
+                    <div style="background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); 
+                               color: white; padding: 12px; border-radius: 8px 8px 0 0; 
+                               margin: -10px -10px 15px -10px;">
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+                            <i class="fas fa-dharmachakra"></i> ${cp.name}
+                        </h3>
+                    </div>
+                    <div style="padding: 5px 0;">
+                        <strong style="color: #ff0000;">${ships.length} ships</strong> in chokepoint area (50km radius)
+                    </div>
+                </div>
+            `);
+            
+            // Add click event to zoom into chokepoint
+            marker.on('click', function() {
+                map.setView([cp.lat, cp.lon], 8); // Zoom level 8 shows ~50km radius well
+            });
+
+            // Also add click to circle
+            circle.on('click', function() {
+                map.setView([cp.lat, cp.lon], 8);
+                marker.openPopup(); // Open the marker popup when clicking circle
+            });
+            
+            // Add all ships to map using separate array
+            if (ships.length > 0) {
+                console.log(`Adding ${ships.length} ships for ${cp.name}`);
+                ships.forEach(ship => {
+                    if (ship.point && ship.point.latitude && ship.point.longitude) {
+                        const shipMarker = createShipMarker(ship);
+                        if (layerVisibility.congestion) {
+                            shipMarker.addTo(map);
+                        }
+                        chokepointShipMarkers.push(shipMarker);  // Use separate array
+                    }
+                });
+            } else {
+                console.log(`No ships found for ${cp.name}`);
+            }
+
+            chokepointMarkers.push(marker);
+        });
+        
+        // Restore button
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    })
+    .catch(error => {
+        console.error('Error fetching chokepoint ships:', error);
+        // Restore button
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
 // Global weather loading function
 function loadWeather(button, lat, lon) {
     const container = button.closest('[data-weather-container]');
@@ -1488,6 +1635,7 @@ function toggleLayerVisibility(layerType, visible) {
             break;
             
         case 'congestion':
+            // Toggle disaster area ships
             shipMarkers.forEach(marker => {
                 if (visible) {
                     if (!map.hasLayer(marker)) marker.addTo(map);
@@ -1495,6 +1643,17 @@ function toggleLayerVisibility(layerType, visible) {
                     if (map.hasLayer(marker)) map.removeLayer(marker);
                 }
             });
+            
+            // Toggle chokepoint ships
+            if (chokepointShipMarkers) {
+                chokepointShipMarkers.forEach(marker => {
+                    if (visible) {
+                        if (!map.hasLayer(marker)) marker.addTo(map);
+                    } else {
+                        if (map.hasLayer(marker)) map.removeLayer(marker);
+                    }
+                });
+            }
             break;
             
         case 'protected':
@@ -1506,10 +1665,6 @@ function toggleLayerVisibility(layerType, visible) {
                 }
             }
             break;
-            
-        // case 'vessels': REMOVED
-        //     toggleVesselTrackMarkers(visible);
-        //     break;
     }
 }
 
@@ -1580,19 +1735,29 @@ function createPortPopup(portData, isOrigin = true) {
                 </div>
             </div>
             
-            <div style="margin-bottom: 8px;">
-    <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center;">
-        <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-            <span style="font-size: 16px;">📍</span>
-        </div>
-        <div>
-            <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
-            <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
-        </div>
-    </div>
-    ${createWeatherSection(portData.lat, portData.lon).outerHTML}
-</div>
+            <div style="display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; margin-bottom: 15px;">
+                <div style="background: #f3e5f5; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 16px;">📍</span>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Coordinates</div>
+                    <div style="color: #2d3748; font-size: 14px;">${portData.lat?.toFixed(4) || 'N/A'}, ${portData.lon?.toFixed(4) || 'N/A'}</div>
+                </div>
             </div>
+            
+            <!-- Detailed View Button -->
+            <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                <button onclick="window.open('/port_details?port_code=${portData.code}', '_blank')"
+                        style="width: 100%; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); 
+                               color: white; border: none; padding: 10px; border-radius: 6px; 
+                               font-weight: 600; cursor: pointer; transition: all 0.3s ease;"
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(52, 152, 219, 0.4)';"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                    <i class="fas fa-external-link-alt"></i> See Detailed View
+                </button>
+            </div>
+            
+            ${createWeatherSection(portData.lat, portData.lon).outerHTML}
         </div>
     `;
 }
@@ -1866,6 +2031,15 @@ document.getElementById('calculate-route').addEventListener('click', function() 
                 summaryAlert.innerHTML = `<strong>Current Month Piracy:</strong> ${data.piracy.current_month_total} incident(s)`;
                 disasterAlerts.appendChild(summaryAlert);
             }
+        }
+        // CHANGE TO:
+        if (data.route && data.route.chokepoints && data.route.chokepoints.length > 0) {
+            console.log(`Found ${data.route.chokepoints.length} chokepoints:`, data.route.chokepoints);
+            document.getElementById('view-chokepoints-btn').style.display = 'block';
+            window.currentChokepoints = data.route.chokepoints;
+        } else {
+            console.log('No chokepoints found in response');
+            document.getElementById('view-chokepoints-btn').style.display = 'none';
         }
         
         // If no route coordinates but we have port coordinates, fit bounds to show both ports
