@@ -25,7 +25,7 @@ class Config:
     SHIP_TYPES_FILTER = ['CARGO_SHIP', 'TANKER']  # Only show these vessel types
 
     # Port congestion settings
-    PORT_CONGESTION_RADIUS_KM = 2
+    PORT_CONGESTION_RADIUS_KM = 5
     PORT_CONGESTION_THRESHOLD = 10
 
     # ECA and MPA data paths
