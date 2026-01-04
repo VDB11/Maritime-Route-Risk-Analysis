@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
+
 from flask import Flask, request, jsonify, render_template
 from searoutes import load_port_data, get_water_bodies, get_countries_by_water_body, get_ports_by_water_body_and_country, calculate_sea_route, get_route_coordinates
 from disaster import parse_gdacs_rss, get_nearby_disasters, get_events_along_route, get_disasters_with_ships, ALERT_COLORS
@@ -330,8 +334,6 @@ def get_vessels_in_area():
         filtered_reports = []
         for report in api_data.get('reports', []):
             vessel_type = report.get('vesselType')
-            if vessel_type not in ['CARGO_SHIP', 'TANKER']:
-                continue
                 
             point = report.get('point', {})
             lat = point.get('latitude', 0)
@@ -377,6 +379,85 @@ def get_vessels_in_area():
         
     except Exception as e:
         print(f"Error fetching vessels: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/vessels_in_custom_bbox', methods=['POST'])
+def get_vessels_in_custom_bbox():
+    try:
+        data = request.json
+        
+        # Get bounds from custom bbox
+        sw_lat = float(data.get('sw_lat'))
+        sw_lon = float(data.get('sw_lon'))
+        ne_lat = float(data.get('ne_lat'))
+        ne_lon = float(data.get('ne_lon'))
+        
+        limit = int(data.get('limit', 0))
+        
+        bbox = f"{sw_lat},{sw_lon};{ne_lat},{ne_lon}"
+        
+        url = "https://ais.marineplan.com/location/2/locations.json"
+        params = {
+            'area': bbox,
+            'moving': 1,
+            'maxage': 1800,
+            'source': 'AIS',
+            'key': Config.MARINEPLAN_API_KEY
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        api_data = response.json()
+        
+        filtered_reports = []
+        for report in api_data.get('reports', []):
+            vessel_type = report.get('vesselType')
+                
+            point = report.get('point', {})
+            lat = point.get('latitude', 0)
+            lon = point.get('longitude', 0)
+            
+            if lat == 0.0 or lon == 0.0:
+                continue
+            
+            # Verify ship is within bounds
+            if not (sw_lat <= lat <= ne_lat and sw_lon <= lon <= ne_lon):
+                continue
+            
+            filtered_report = {
+                'boatName': report.get('boatName', '').upper(),
+                'mmsi': report.get('mmsi'),
+                'country': report.get('country'),
+                'vesselType': vessel_type,
+                'point': point,
+                'destinationName': report.get('destinationName', '').upper(),
+                'speedKmh': report.get('speedKmh'),
+                'bearingDeg': report.get('bearingDeg'),
+                'draughtMeters': report.get('draughtMeters'),
+                'lengthMeters': report.get('lengthMeters'),
+                'widthMeters': report.get('widthMeters'),
+                'imo': report.get('imo')
+            }
+            filtered_reports.append(filtered_report)
+            
+            if limit > 0 and len(filtered_reports) >= limit:
+                break
+        
+        return jsonify({
+            'success': True,
+            'count': len(filtered_reports),
+            'vessels': filtered_reports,
+            'bounds': {
+                'sw_lat': sw_lat,
+                'sw_lon': sw_lon,
+                'ne_lat': ne_lat,
+                'ne_lon': ne_lon
+            },
+            'source': 'custom_bbox'
+        })
+        
+    except Exception as e:
+        print(f"Error fetching vessels in custom bbox: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Add new endpoint for disasters in area
@@ -450,7 +531,6 @@ def get_disasters_in_area():
         print(f"Error getting disasters: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# Add new endpoint for ECA/MPA in area
 @app.route('/api/eca_mpa_in_area', methods=['POST'])
 def get_eca_mpa_in_area():
     try:
@@ -591,6 +671,69 @@ def get_collisions_for_disaster(disaster_gdacs_id):
         print(f"Error calculating collisions: {e}")
         return jsonify([])
 
+@app.route('/api/chokepoint_collisions', methods=['POST'])
+def get_chokepoint_collisions():
+    try:
+        data = request.json
+        ships = data.get('ships', [])
+        
+        from collision_detection import collision_detector, Vessel
+        
+        vessels = []
+        for ship in ships:
+            # Skip stationary ships
+            speed = ship.get('speedKmh')
+            if speed is None or speed == 0:
+                continue
+            
+            if (ship.get('point') and 
+                ship['point'].get('latitude') and 
+                ship['point'].get('longitude') and
+                ship.get('bearingDeg') is not None):
+                
+                vessels.append(Vessel(
+                    mmsi=ship.get('mmsi', 'Unknown'),
+                    name=ship.get('boatName', 'Unknown'),
+                    lat=ship['point']['latitude'],
+                    lon=ship['point']['longitude'],
+                    speed_kmh=speed,
+                    bearing_deg=ship.get('bearingDeg', 0),
+                    length_meters=ship.get('lengthMeters'),
+                    width_meters=ship.get('widthMeters')
+                ))
+        
+        collisions = collision_detector.detect_collisions(vessels)
+        
+        collisions_data = []
+        for collision in collisions:
+            collisions_data.append({
+                'vessel_a': {
+                    'mmsi': collision.vessel_a.mmsi,
+                    'name': collision.vessel_a.name,
+                    'lat': collision.vessel_a.lat,
+                    'lon': collision.vessel_a.lon,
+                    'speed_kmh': collision.vessel_a.speed_kmh,
+                    'bearing_deg': collision.vessel_a.bearing_deg
+                },
+                'vessel_b': {
+                    'mmsi': collision.vessel_b.mmsi,
+                    'name': collision.vessel_b.name,
+                    'lat': collision.vessel_b.lat,
+                    'lon': collision.vessel_b.lon,
+                    'speed_kmh': collision.vessel_b.speed_kmh,
+                    'bearing_deg': collision.vessel_b.bearing_deg
+                },
+                'cpa_km': round(collision.cpa_km, 3),
+                'tcpa_minutes': round(collision.tcpa_minutes, 1),
+                'risk_level': collision.risk_level
+            })
+        
+        return jsonify(collisions_data)
+        
+    except Exception as e:
+        print(f"Error calculating chokepoint collisions: {e}")
+        return jsonify([])
+
 @app.route('/api/weather')
 def get_weather_api():
     lat = request.args.get('lat', type=float)
@@ -653,12 +796,17 @@ def detect_collisions_api():
         # Convert to Vessel objects
         vessel_objects = []
         for v in vessels:
+            # Skip stationary ships
+            speed = v.get('speed_kmh')
+            if speed is None or speed == 0:
+                continue
+            
             vessel = Vessel(
                 mmsi=v.get('mmsi', 'Unknown'),
                 name=v.get('name', 'Unknown'),
                 lat=v['lat'],
                 lon=v['lon'],
-                speed_kmh=v['speed_kmh'],
+                speed_kmh=speed,
                 bearing_deg=v['bearing_deg']
             )
             vessel_objects.append(vessel)
@@ -765,7 +913,6 @@ def get_chokepoint_ships():
 
 @app.route('/api/port_details/<port_code>')
 def get_port_details_api(port_code):
-    """API endpoint for detailed port information."""
     try:
         # Use weather function from weather_details module
         from weather_details import get_weather_forecast
