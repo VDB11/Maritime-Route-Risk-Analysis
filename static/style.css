@@ -121,6 +121,28 @@ button:disabled {
     padding: 15px;
     background-color: rgba(255, 255, 255, 0.1);
     border-radius: 5px;
+    max-height: 600px; /* Set max height for scrollable area */
+    overflow-y: auto; /* Enable vertical scrolling */
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Custom scrollbar styling for route-info */
+.route-info::-webkit-scrollbar {
+    width: 8px;
+}
+
+.route-info::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.route-info::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.route-info::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .alert-box {
@@ -146,22 +168,32 @@ button:disabled {
 .legend-header {
     display: flex;
     align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e0e0e0;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .legend-header i {
-    margin-right: 10px;
-    color: #4facfe;
-    font-size: 18px;
+    font-size: 16px;
+    color: #4a6cf7;
+    background: rgba(74, 108, 247, 0.12);
+    padding: 6px;
+    border-radius: 6px;
 }
 
 .legend-header h4 {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
-    color: #333;
+    letter-spacing: 0.4px;
+    color: #2c2c2c;
+    text-transform: uppercase;
+}
+
+.legend:hover {
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+    transition: box-shadow 0.2s ease;
 }
 
 .legend-section {
@@ -483,4 +515,35 @@ button:disabled {
 
 .chokepoint-icon {
     z-index: 1000 !important;
+}
+
+/* Collision dropdown scrollable area */
+#collision-dropdown-content,
+[id^="chokepoint-collision-dropdown-content-"] {
+    max-height: 400px; /* Limit dropdown height */
+    overflow-y: auto; /* Enable scrolling inside dropdown */
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for collision dropdowns */
+#collision-dropdown-content::-webkit-scrollbar,
+[id^="chokepoint-collision-dropdown-content-"]::-webkit-scrollbar {
+    width: 6px;
+}
+
+#collision-dropdown-content::-webkit-scrollbar-track,
+[id^="chokepoint-collision-dropdown-content-"]::-webkit-scrollbar-track {
+    background: rgba(133, 100, 4, 0.1);
+    border-radius: 3px;
+}
+
+#collision-dropdown-content::-webkit-scrollbar-thumb,
+[id^="chokepoint-collision-dropdown-content-"]::-webkit-scrollbar-thumb {
+    background: rgba(133, 100, 4, 0.3);
+    border-radius: 3px;
+}
+
+#collision-dropdown-content::-webkit-scrollbar-thumb:hover,
+[id^="chokepoint-collision-dropdown-content-"]::-webkit-scrollbar-thumb:hover {
+    background: rgba(133, 100, 4, 0.5);
 }

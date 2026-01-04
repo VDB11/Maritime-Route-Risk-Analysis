@@ -3,6 +3,7 @@ let map = null;
 let shipMarkers = [];
 let selectedShipIndex = -1;
 let vesselsData = [];
+let expectedArrivalsData = [];
 
 // Toggle weather widget
 function toggleWeather() {
@@ -60,14 +61,6 @@ function initializeMap(lat, lon, portName) {
             attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19
         }),
-        "OpenSeaMap": L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-            attribution: 'Map data: &copy; OpenSeaMap contributors',
-            maxZoom: 18
-        }),
-        "ESRI Ocean": L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri Ocean Base',
-            maxZoom: 16
-        }),
         "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
             maxZoom: 20
@@ -114,7 +107,7 @@ function createShipIcon(ship, index, isSelected = false) {
     const vesselType = ship.vesselType || 'UNKNOWN';
     
     // Light green color
-    let shipColor = '#90EE90'; // LIGHT GREEN
+    let shipColor = '#2E7D32'; // LIGHT GREEN
     
     if (vesselType === 'TANKER') {
         shipColor = '#FFB366'; // Lighter orange for tankers
@@ -146,7 +139,7 @@ function createShipMarker(ship, index, isSelected = false) {
                                vesselType === 'TANKER' ? 'Tanker' : vesselType;
     
     // Get ship color for popup
-    let shipColor = '#90EE90';
+    let shipColor = '#2E7D32';
     if (vesselType === 'TANKER') {
         shipColor = '#FFB366';
     } else if (vesselType === 'CARGO_SHIP') {
@@ -314,7 +307,7 @@ function selectVessel(index) {
     selectedShipIndex = index;
     const ship = vesselsData[index];
     
-    // Highlight on map - CREATE JUST THE ICON
+    // Highlight on map
     const marker = shipMarkers[index];
     const newIcon = createShipIcon(ship, index, true);
     marker.setIcon(newIcon);
@@ -538,7 +531,7 @@ function formatAdditionalDetails(port) {
     `;
 }
 
-// Format weather data (SMALL - only temp and wind speed)
+// Format weather data
 function formatWeatherData(weather) {
     if (!weather || !weather.current) {
         return `
@@ -595,6 +588,67 @@ function formatWeatherData(weather) {
     `;
 }
 
+function getPortTypeFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('type'); // returns 'origin', 'destination', or null
+}
+
+// Show expected arrivals popup
+function showExpectedArrivals() {
+    document.getElementById('expected-arrivals-popup').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+// Close expected arrivals popup
+function closeExpectedArrivals() {
+    document.getElementById('expected-arrivals-popup').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+// Format expected arrivals list
+function formatExpectedArrivals(ships) {
+    if (!ships || ships.length === 0) {
+        return '<div class="no-data">No expected arrivals</div>';
+    }
+    
+    let html = '';
+    
+    ships.forEach((ship, index) => {
+        const vesselName = ship.boatName.replace(/_/g, ' ').trim();
+        const destination = ship.destinationName ? ship.destinationName.replace(/_/g, ' ').trim() : 'Unknown';
+        const vesselType = ship.vesselType || 'Unknown';
+        
+        html += `
+            <div class="vessel-item" style="cursor: default;">
+                <div class="vessel-header">
+                    <div class="vessel-name">${vesselName}</div>
+                    <div class="vessel-type">${vesselType}</div>
+                </div>
+                <div class="vessel-details">
+                    <div class="vessel-stat">
+                        <span class="label">MMSI:</span>
+                        <span class="value">${ship.mmsi || 'N/A'}</span>
+                    </div>
+                    <div class="vessel-stat">
+                        <span class="label">Flag:</span>
+                        <span class="value">${ship.country || 'N/A'}</span>
+                    </div>
+                    <div class="vessel-stat">
+                        <span class="label">Destination:</span>
+                        <span class="value">${destination}</span>
+                    </div>
+                    <div class="vessel-stat">
+                        <span class="label">Speed:</span>
+                        <span class="value">${ship.speedKmh ? ship.speedKmh.toFixed(1) : '0.0'} km/h</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    return html;
+}
+
 // Setup map click handler for deselection
 function setupMapClickHandler() {
     if (!map) return;
@@ -641,6 +695,30 @@ async function loadPortDetails() {
         
         // Display ships
         document.getElementById('vessels-list').innerHTML = formatShipData(data.ships.ships);
+        
+        // Display expected arrivals ONLY for destination ports
+        const portType = getPortTypeFromURL();
+        if (portType === 'destination' && data.expected_arrivals) {
+            expectedArrivalsData = data.expected_arrivals.ships || [];
+            
+            // Add expected arrivals section in vessels card header area
+            const expectedHTML = `
+                <div class="expected-arrivals-section" onclick="showExpectedArrivals()">
+                    <span class="expected-label">Expected Arrivals</span>
+                    <span class="expected-value">
+                        ${data.expected_arrivals.count}
+                        <i class="fas fa-chevron-right"></i>
+                    </span>
+                </div>
+            `;
+            
+            // Insert after vessel count header
+            const vesselsCard = document.querySelector('.vessels-card h2');
+            vesselsCard.insertAdjacentHTML('afterend', expectedHTML);
+            
+            // Populate popup content
+            document.getElementById('expected-arrivals-list').innerHTML = formatExpectedArrivals(expectedArrivalsData);
+        }
         
         // Display weather
         document.getElementById('weather-content').innerHTML = formatWeatherData(data.weather);

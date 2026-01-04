@@ -23,9 +23,9 @@ const tileLayers = {
         attribution: 'Map data: &copy; OpenSeaMap contributors',
         maxZoom: 18
     }),
-    "ESRI Ocean": L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri Ocean Base',
-        maxZoom: 16
+    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19
     }),
     "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
@@ -91,6 +91,7 @@ let collisionLines = [];
 window.currentRouteCollisions = [];
 let chokepointMarkers = [];
 let chokepointShipMarkers = [];
+window.chokepointCollisions = [];
 
 // Alert color mapping
 const alertColorMap = {
@@ -256,6 +257,14 @@ function checkCalculateButton() {
     calculateButton.disabled = !(originPort && destPort);
 }
 
+// Helper function to darken a color for gradient
+function darkenColor(color) {
+    if (color === '#2E7D32') return '#76C776'; // Darker light green
+    if (color === '#2196F3') return '#1976D2'; // Darker blue
+    if (color === '#FF9800') return '#F57C00'; // Darker orange
+    return color; // Fallback
+}
+
 // Function to clear all markers and layers
 function clearMapLayers() {
     if (routeLayer) {
@@ -307,13 +316,13 @@ function clearMapLayers() {
     // Clear stored route bounds
     window.currentRouteBounds = null;
 
-    if (window.collisionLines) {
-        window.collisionLines.forEach(line => {
+    if (collisionLines) {
+        collisionLines.forEach(line => {
             if (map.hasLayer(line)) {
                 map.removeLayer(line);
             }
         });
-        window.collisionLines = [];
+        collisionLines = [];
     }
     
     // Clear collision data
@@ -338,11 +347,10 @@ function clearMapLayers() {
     }
 }
 
-// Function to create ship markers (FOR DISASTER AREA SHIPS - KEEP)
+// Function to create ship markers
 function createShipMarker(ship) {
     const vesselType = ship.vesselType || 'UNKNOWN';
     
-    // Format vessel type: CARGO_SHIP -> Cargo Ship, TANKER -> Tanker
     let formattedVesselType = vesselType;
     if (vesselType === 'CARGO_SHIP') {
         formattedVesselType = 'Cargo Ship';
@@ -363,10 +371,11 @@ function createShipMarker(ship) {
     const rawDestination = ship.destinationName || 'Unknown';
     const cleanDestination = rawDestination.replace(/_/g, ' ').trim();
     
-    let shipColor = '#2196F3'; // Default blue for cargo ships
-    
+    let shipColor = '#2E7D32'; // LIGHT GREEN for all other ships
     if (vesselType === 'TANKER') {
         shipColor = '#FF9800'; // Orange for tankers
+    } else if (vesselType === 'CARGO_SHIP') {
+        shipColor = '#2196F3'; // Blue for cargo ships
     }
     
     // Simpler icon without background - just the ship symbol
@@ -389,8 +398,7 @@ function createShipMarker(ship) {
     
     const popupHtml = `
     <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
+        <div style="background: linear-gradient(135deg, ${shipColor} 0%, ${darkenColor(shipColor)} 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
             <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
                 ${cleanShipName}
             </h3>
@@ -841,14 +849,14 @@ function addCollisionLines(collisionsData) {
     console.log("🎨 DRAWING COLLISION LINES:", collisionsData);
     
     // Remove existing collision lines
-    if (window.collisionLines) {
-        window.collisionLines.forEach(line => {
+    if (collisionLines) {
+        collisionLines.forEach(line => {
             if (map.hasLayer(line)) {
                 map.removeLayer(line);
             }
         });
     }
-    window.collisionLines = [];
+    collisionLines = [];
 
     if (!collisionsData || collisionsData.length === 0) return;
 
@@ -873,7 +881,6 @@ function addCollisionLines(collisionsData) {
             opacity: 0.9,
             dashArray: '5, 5'
         });
-
         const popupContent = `
             <div style="font-family: Arial, sans-serif; min-width: 250px;">
                 <div style="background: #ff0000; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
@@ -912,8 +919,12 @@ function addCollisionLines(collisionsData) {
         `;
 
         collisionLine.bindPopup(popupContent);
-        collisionLine.addTo(map);
-        window.collisionLines.push(collisionLine);
+        
+        if (layerVisibility.congestion) {
+            collisionLine.addTo(map);
+        }
+        
+        collisionLines.push(collisionLine);
     });
     
     console.log(`✅ Added ${criticalCollisions.length} CRITICAL collision lines`);
@@ -1183,8 +1194,8 @@ function goToCollision(index) {
         map.setView([centerLat, centerLon], 10);
         
         // Open the collision line popup if available
-        if (window.collisionLines && window.collisionLines[index]) {
-            window.collisionLines[index].openPopup();
+        if (collisionLines && collisionLines[index]) {
+            collisionLines[index].openPopup();
         }
     }
 }
@@ -1271,6 +1282,9 @@ function showChokepoints() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     btn.disabled = true;
 
+    // Initialize chokepoint collisions array
+    window.chokepointCollisions = [];
+
     // Fetch ships for all chokepoints
     fetch('/api/chokepoint_ships', {
         method: 'POST',
@@ -1298,14 +1312,14 @@ function showChokepoints() {
             const marker = L.marker([cp.lat, cp.lon], { icon })
                 .addTo(map);
 
-            // Add LARGE red circle (50km radius for visibility)
             const circle = L.circle([cp.lat, cp.lon], {
-                radius: 80000, // 50km in meters
+                radius: 100000, //chokepoint radius in meters
                 color: '#ff0000',
                 fillColor: '#ff0000',
                 fillOpacity: 0.2,
                 weight: 3,
-                opacity: 0.8
+                opacity: 0.8,
+                interactive: false
             }).addTo(map);
             
             chokepointMarkers.push(circle);
@@ -1324,20 +1338,19 @@ function showChokepoints() {
                         </h3>
                     </div>
                     <div style="padding: 5px 0;">
-                        <strong style="color: #ff0000;">${ships.length} ships</strong> in chokepoint area (50km radius)
+                        <strong style="color: #ff0000;">${ships.length} ships</strong> in chokepoint area
                     </div>
                 </div>
             `);
             
             // Add click event to zoom into chokepoint
             marker.on('click', function() {
-                map.setView([cp.lat, cp.lon], 8); // Zoom level 8 shows ~50km radius well
+                map.setView([cp.lat, cp.lon], 8);
             });
 
             // Also add click to circle
             circle.on('click', function() {
                 map.setView([cp.lat, cp.lon], 8);
-                marker.openPopup(); // Open the marker popup when clicking circle
             });
             
             // Add all ships to map using separate array
@@ -1349,9 +1362,131 @@ function showChokepoints() {
                         if (layerVisibility.congestion) {
                             shipMarker.addTo(map);
                         }
-                        chokepointShipMarkers.push(shipMarker);  // Use separate array
+                        chokepointShipMarkers.push(shipMarker);
                     }
                 });
+                
+                // Check collisions for this chokepoint
+                fetch('/api/chokepoint_collisions', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ships: ships })
+                })
+                .then(res => res.json())
+                .then(collisions => {
+                    if (collisions && collisions.length > 0) {
+                        console.log(`Found ${collisions.length} collisions in ${cp.name}`);
+                        
+                        // Store collisions globally with chokepoint name
+                        const startIndex = window.chokepointCollisions.length;
+                        window.chokepointCollisions.push(...collisions);
+                        
+                        addCollisionLines(collisions);
+                        
+                        // Add collision alert dropdown to sidebar for chokepoint
+                        const disasterAlerts = document.getElementById('disaster-alerts');
+                        const alert = document.createElement('div');
+                        alert.className = 'alert-box';
+                        alert.style.backgroundColor = '#fff3cd';
+                        alert.style.borderLeftColor = '#ff9900';
+                        alert.style.color = '#856404';
+                        alert.style.cursor = 'pointer';
+                        alert.style.position = 'relative';
+
+                        // Alert header (clickable)
+                        const alertHeader = document.createElement('div');
+                        const sanitizedName = cp.name.replace(/\s+/g, '-');
+                        alertHeader.onclick = function() { toggleChokepointCollisionDropdown(cp.name); };
+                        alertHeader.style.cssText = `
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-start;
+                            padding-right: 5px;
+                            gap: 10px;
+                        `;
+                        alertHeader.innerHTML = `
+                            <div style="flex: 1;">
+                                <strong>🚨 Chokepoint Collision Alert!</strong> ${collisions.length} collision(s) detected in ${cp.name}
+                            </div>
+                            <i id="chokepoint-collision-dropdown-icon-${sanitizedName}" class="fas fa-chevron-down" style="font-size: 14px; flex-shrink: 0; margin-left: 10px;"></i>
+                        `;
+
+                        // Dropdown content (initially hidden)
+                        const dropdownContent = document.createElement('div');
+                        dropdownContent.id = `chokepoint-collision-dropdown-content-${sanitizedName}`;
+                        dropdownContent.style.display = 'none';
+                        dropdownContent.style.marginTop = '15px';
+                        dropdownContent.style.paddingTop = '15px';
+                        dropdownContent.style.borderTop = '1px solid rgba(133, 100, 4, 0.3)';
+
+                        let html = '';
+                        collisions.forEach((collision, index) => {
+                            const globalIndex = startIndex + index;
+                            const vesselA = collision.vessel_a;
+                            const vesselB = collision.vessel_b;
+                            
+                            html += `
+                                <div onclick="event.stopPropagation(); goToChokepointCollision(${globalIndex})" style="background: linear-gradient(135deg, #ff1744 0%, #f50057 100%); 
+                                    border: 2px solid #ff5252; padding: 12px; margin-bottom: 12px; border-radius: 8px; 
+                                    cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(255, 23, 68, 0.3);">
+                                    
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <div style="font-weight: 700; color: #ffffff; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+                                            <i class="fas fa-exclamation-triangle"></i> Collision ${index + 1}
+                                        </div>
+                                        <div style="background: #ffffff; color: #ff1744; padding: 4px 12px; border-radius: 20px; 
+                                            font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                            CRITICAL
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="font-size: 13px; color: #ffffff; line-height: 1.6; font-weight: 500;">
+                                        <div style="margin-bottom: 6px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                            border-radius: 6px; backdrop-filter: blur(10px);">
+                                            <strong style="color: #ffeb3b;">Vessel A:</strong> ${vesselA.name}
+                                        </div>
+                                        <div style="margin-bottom: 8px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                            border-radius: 6px; backdrop-filter: blur(10px);">
+                                            <strong style="color: #ffeb3b;">Vessel B:</strong> ${vesselB.name}
+                                        </div>
+                                        
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; 
+                                            padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
+                                            <div>
+                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                                    CPA DISTANCE
+                                                </div>
+                                                <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                                    ${collision.cpa_km.toFixed(3)} km
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
+                                                    TIME TO CPA
+                                                </div>
+                                                <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
+                                                    ${collision.tcpa_minutes.toFixed(1)} min
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 10px; text-align: center; color: #ffeb3b; font-size: 12px; 
+                                        font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                                        <i class="fas fa-map-marker-alt"></i> Click to view on map
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        dropdownContent.innerHTML = html;
+
+                        alert.appendChild(alertHeader);
+                        alert.appendChild(dropdownContent);
+                        disasterAlerts.appendChild(alert);
+                    }
+                })
+                .catch(err => console.error(`Error detecting collisions for ${cp.name}:`, err));
             } else {
                 console.log(`No ships found for ${cp.name}`);
             }
@@ -1654,6 +1789,16 @@ function toggleLayerVisibility(layerType, visible) {
                     }
                 });
             }
+            
+            if (collisionLines) {
+                collisionLines.forEach(line => {
+                    if (visible) {
+                        if (!map.hasLayer(line)) line.addTo(map);
+                    } else {
+                        if (map.hasLayer(line)) map.removeLayer(line);
+                    }
+                });
+            }
             break;
             
         case 'protected':
@@ -1747,10 +1892,10 @@ function createPortPopup(portData, isOrigin = true) {
             
             <!-- Detailed View Button -->
             <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
-                <button onclick="window.open('/port_details?port_code=${portData.code}', '_blank')"
+                <button onclick="window.open('/port_details?port_code=${portData.code}&type=${isOrigin ? 'origin' : 'destination'}', '_blank')"
                         style="width: 100%; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); 
-                               color: white; border: none; padding: 10px; border-radius: 6px; 
-                               font-weight: 600; cursor: pointer; transition: all 0.3s ease;"
+                            color: white; border: none; padding: 10px; border-radius: 6px; 
+                            font-weight: 600; cursor: pointer; transition: all 0.3s ease;"
                         onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(52, 152, 219, 0.4)';"
                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
                     <i class="fas fa-external-link-alt"></i> See Detailed View
@@ -1760,6 +1905,57 @@ function createPortPopup(portData, isOrigin = true) {
             ${createWeatherSection(portData.lat, portData.lon).outerHTML}
         </div>
     `;
+}
+
+// Function to toggle chokepoint collision dropdown
+function toggleChokepointCollisionDropdown(chokepointName) {
+    const sanitizedName = chokepointName.replace(/\s+/g, '-');
+    const content = document.getElementById(`chokepoint-collision-dropdown-content-${sanitizedName}`);
+    const icon = document.getElementById(`chokepoint-collision-dropdown-icon-${sanitizedName}`);
+    
+    if (content && icon) {
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            content.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+}
+
+// Function to navigate to chokepoint collision on map
+function goToChokepointCollision(index) {
+    if (window.chokepointCollisions && index >= 0 && index < window.chokepointCollisions.length) {
+        const collision = window.chokepointCollisions[index];
+        const vesselA = collision.vessel_a;
+        const vesselB = collision.vessel_b;
+        
+        const centerLat = (vesselA.lat + vesselB.lat) / 2;
+        const centerLon = (vesselA.lon + vesselB.lon) / 2;
+        
+        map.setView([centerLat, centerLon], 10);
+        
+        // Find and open the collision line popup
+        if (collisionLines) {
+            collisionLines.forEach(line => {
+                const lineLatLngs = line.getLatLngs();
+                if (lineLatLngs.length === 2) {
+                    const lat1 = lineLatLngs[0].lat;
+                    const lon1 = lineLatLngs[0].lng;
+                    const lat2 = lineLatLngs[1].lat;
+                    const lon2 = lineLatLngs[1].lng;
+                    
+                    if ((Math.abs(lat1 - vesselA.lat) < 0.0001 && Math.abs(lon1 - vesselA.lon) < 0.0001 &&
+                         Math.abs(lat2 - vesselB.lat) < 0.0001 && Math.abs(lon2 - vesselB.lon) < 0.0001) ||
+                        (Math.abs(lat1 - vesselB.lat) < 0.0001 && Math.abs(lon1 - vesselB.lon) < 0.0001 &&
+                         Math.abs(lat2 - vesselA.lat) < 0.0001 && Math.abs(lon2 - vesselA.lon) < 0.0001)) {
+                        line.openPopup();
+                    }
+                }
+            });
+        }
+    }
 }
 
 // Initialize event listeners when DOM is loaded

@@ -23,9 +23,9 @@ const tileLayers = {
         attribution: 'Map data: &copy; OpenSeaMap contributors',
         maxZoom: 18
     }),
-    "ESRI Ocean": L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri Ocean Base',
-        maxZoom: 16
+    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri, Maxar, Earthstar Geographics',
+            maxZoom: 19
     }),
     "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
@@ -85,7 +85,10 @@ let disasterShipMarkers = [];
 let collisionLines = [];
 let ecaMpaLayer = null;
 let currentCollisions = [];
-let currentBounds = null; // Store current region bounds
+let currentBounds = null;
+let drawingMode = false;
+let drawnRectangle = null;
+let customBounds = null;
 
 // Visibility state
 let layerVisibility = {
@@ -132,6 +135,14 @@ function toggleLayerVisibility(layerType, visible) {
                     if (map.hasLayer(marker)) map.removeLayer(marker);
                 }
             });
+            // Also toggle collisions with ships
+            collisionLines.forEach(line => {
+                if (visible) {
+                    if (!map.hasLayer(line)) line.addTo(map);
+                } else {
+                    if (map.hasLayer(line)) map.removeLayer(line);
+                }
+            });
             break;
             
         case 'disasters':
@@ -151,16 +162,6 @@ function toggleLayerVisibility(layerType, visible) {
             });
             break;
             
-        case 'collisions':
-            collisionLines.forEach(line => {
-                if (visible) {
-                    if (!map.hasLayer(line)) line.addTo(map);
-                } else {
-                    if (map.hasLayer(line)) map.removeLayer(line);
-                }
-            });
-            break;
-            
         case 'ecaMpa':
             if (ecaMpaLayer) {
                 if (visible) {
@@ -171,6 +172,15 @@ function toggleLayerVisibility(layerType, visible) {
             }
             break;
     }
+}
+
+// Helper function to darken a color for gradient
+function darkenColor(color) {
+    // Simple darkening for common colors
+    if (color === '#2E7D32') return '#76C776'; // Darker light green
+    if (color === '#2196F3') return '#1976D2'; // Darker blue
+    if (color === '#FF9800') return '#F57C00'; // Darker orange
+    return color; // Fallback
 }
 
 // Function to clear vessel markers
@@ -224,6 +234,93 @@ function clearEcaMpaLayer() {
     }
 }
 
+function enableBboxDrawing() {
+    // If already in drawing mode or bbox already drawn, clear and restart
+    if (drawnRectangle) {
+        map.removeLayer(drawnRectangle);
+        drawnRectangle = null;
+    }
+    
+    drawingMode = true;
+    map.dragging.disable();
+    map.getContainer().style.cursor = 'crosshair';
+    document.getElementById('bbox-status').style.display = 'block';
+    document.getElementById('bbox-status-text').textContent = 'Click and drag to draw area (Press ESC to cancel)';
+    document.getElementById('ocean-region').disabled = true;
+    
+    let startLatLng = null;
+    let mousemoveHandler = null;
+    let mouseupHandler = null;
+    
+    // ESC key handler
+    const escapeHandler = function(e) {
+        if (e.key === 'Escape') {
+            cancelDrawing();
+        }
+    };
+    
+    const cancelDrawing = function() {
+        map.off('mousemove', mousemoveHandler);
+        map.off('mouseup', mouseupHandler);
+        map.dragging.enable();
+        map.getContainer().style.cursor = '';
+        drawingMode = false;
+        
+        if (drawnRectangle) {
+            map.removeLayer(drawnRectangle);
+            drawnRectangle = null;
+        }
+        
+        customBounds = null;
+        document.getElementById('bbox-status').style.display = 'none';
+        document.getElementById('ocean-region').disabled = false;
+        document.getElementById('draw-bbox-btn').innerHTML = '<i class="fas fa-draw-polygon"></i> Draw Custom Area';
+        document.removeEventListener('keydown', escapeHandler);
+    };
+    
+    document.addEventListener('keydown', escapeHandler);
+    
+    map.once('mousedown', function(e) {
+        startLatLng = e.latlng;
+        
+        mousemoveHandler = function(e) {
+            if (drawnRectangle) {
+                map.removeLayer(drawnRectangle);
+            }
+            
+            const bounds = L.latLngBounds(startLatLng, e.latlng);
+            drawnRectangle = L.rectangle(bounds, {
+                color: '#2E7D32',
+                weight: 3,
+                fillOpacity: 0.2
+            }).addTo(map);
+        };
+        
+        map.on('mousemove', mousemoveHandler);
+        
+        mouseupHandler = function(e) {
+            map.off('mousemove', mousemoveHandler);
+            map.dragging.enable();
+            map.getContainer().style.cursor = '';
+            drawingMode = false;
+            
+            const bounds = L.latLngBounds(startLatLng, e.latlng);
+            customBounds = {
+                sw_lat: bounds.getSouth(),
+                sw_lon: bounds.getWest(),
+                ne_lat: bounds.getNorth(),
+                ne_lon: bounds.getEast()
+            };
+            
+            document.getElementById('bbox-status-text').textContent = 'Custom area selected ✓';
+            document.getElementById('draw-bbox-btn').innerHTML = '<i class="fas fa-redo"></i> Redraw Area';
+            document.removeEventListener('keydown', escapeHandler);
+        };
+        
+        map.once('mouseup', mouseupHandler);
+    });
+}
+
 // Function to create ship marker
 function createShipMarker(ship) {
     const vesselType = ship.vesselType || 'UNKNOWN';
@@ -245,10 +342,11 @@ function createShipMarker(ship) {
     const rawDestination = ship.destinationName || 'Unknown';
     const cleanDestination = rawDestination.replace(/_/g, ' ').trim();
     
-    let shipColor = '#2196F3';
-    
+    let shipColor = '#2E7D32'; // LIGHT GREEN for all other ships
     if (vesselType === 'TANKER') {
-        shipColor = '#FF9800';
+        shipColor = '#FF9800'; // Orange for tankers
+    } else if (vesselType === 'CARGO_SHIP') {
+        shipColor = '#2196F3'; // Blue for cargo ships
     }
     
     const shipIcon = L.divIcon({
@@ -269,7 +367,7 @@ function createShipMarker(ship) {
     
     const popupHtml = `
     <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
+        <div style="background: linear-gradient(135deg, ${shipColor} 0%, ${darkenColor(shipColor)} 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px;">
             <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;">
                 ${cleanShipName}
             </h3>
@@ -654,8 +752,11 @@ criticalCollisions.forEach((collision, index) => {
 
 if (criticalCollisions.length > 0) {
     displayCollisionList(criticalCollisions);
+    showResults('Collision Detection', `Found ${criticalCollisions.length} CRITICAL collision(s) among all ${vesselMarkers.length} vessels`);
 } else {
-    showResults('Collision Detection', 'No CRITICAL collision risks detected');
+    showResults('Collision Detection', `No CRITICAL collision risks detected among ${vesselMarkers.length} vessels`);
+    // Hide collision list if no critical collisions
+    document.getElementById('collision-list-container').style.display = 'none';
 }
 }
 // Function to display collision list in sidebar
@@ -746,6 +847,20 @@ function toggleCollisionList() {
 const container = document.getElementById('collision-list-container');
 container.style.display = 'none';
 }
+// Function to toggle collision list collapse/expand
+function toggleCollisionCollapse() {
+    const content = document.getElementById('collision-list-content');
+    const icon = document.getElementById('collision-collapse-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.className = 'fas fa-chevron-up';
+    } else {
+        content.style.display = 'none';
+        icon.className = 'fas fa-chevron-down';
+    }
+}
+
 // Function to detect collisions among visible vessels
 function detectCollisions() {
 if (vesselMarkers.length < 2) {
@@ -755,7 +870,11 @@ return;
 const vessels = [];
 vesselMarkers.forEach(marker => {
     const vesselData = marker.options.vesselData;
-    if (vesselData && vesselData.point && vesselData.speedKmh !== undefined && vesselData.bearingDeg !== undefined) {
+    if (vesselData && vesselData.point && 
+        vesselData.speedKmh !== undefined && 
+        vesselData.speedKmh !== null && 
+        vesselData.speedKmh > 0 && 
+        vesselData.bearingDeg !== undefined) {
         vessels.push({
             mmsi: vesselData.mmsi || 'Unknown',
             name: vesselData.boatName || 'Unknown',
@@ -790,85 +909,100 @@ fetch('/api/detect_collisions', {
 }
 // Function to show all vessels in selected area
 function showAllVessels() {
-const oceanRegion = document.getElementById('ocean-region').value;
-const limitInput = document.getElementById('vessel-limit').value;
-const limit = limitInput ? parseInt(limitInput) : 0;
-clearVesselMarkers();
-clearCollisionLines();
-clearDisasterMarkers();
-clearEcaMpaLayer();
-
-const btn = document.getElementById('show-vessels-btn');
-const originalText = btn.innerHTML;
-btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-btn.disabled = true;
-
-let requestData = { limit: limit };
-
-if (oceanRegion) {
-    requestData.ocean_region = oceanRegion;
-} else {
-    const bounds = map.getBounds();
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
+    const oceanRegion = document.getElementById('ocean-region').value;
+    const limitInput = document.getElementById('vessel-limit').value;
+    const limit = limitInput ? parseInt(limitInput) : 0;
     
-    requestData.sw_lat = sw.lat;
-    requestData.sw_lon = sw.lng;
-    requestData.ne_lat = ne.lat;
-    requestData.ne_lon = ne.lng;
-}
+    const isRedrawing = customBounds && currentBounds;
+    
+    if (!isRedrawing) {
+        clearVesselMarkers();
+        clearCollisionLines();
+        clearDisasterMarkers();
+        clearEcaMpaLayer();
+    }
 
-fetch('/api/vessels_in_area', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestData)
-})
-.then(response => response.json())
-.then(data => {
-    if (data.success && data.vessels && data.vessels.length > 0) {
-        // Store current bounds
-        currentBounds = data.bounds;
+    const btn = document.getElementById('show-vessels-btn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    btn.disabled = true;
+
+    let requestData = { limit: limit };
+    let apiEndpoint = '/api/vessels_in_area';
+
+    if (customBounds) {
+        // Use custom drawn bounds with new endpoint
+        apiEndpoint = '/api/vessels_in_custom_bbox';
+        requestData.sw_lat = customBounds.sw_lat;
+        requestData.sw_lon = customBounds.sw_lon;
+        requestData.ne_lat = customBounds.ne_lat;
+        requestData.ne_lon = customBounds.ne_lon;
+    } else if (oceanRegion) {
+        requestData.ocean_region = oceanRegion;
+    } else {
+        const bounds = map.getBounds();
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
         
-        // Add vessels
-        data.vessels.forEach(vessel => {
-            const marker = createShipMarker(vessel);
-            marker.options.vesselData = vessel;
-            if (layerVisibility.ships) {
-                marker.addTo(map);
+        requestData.sw_lat = sw.lat;
+        requestData.sw_lon = sw.lng;
+        requestData.ne_lat = ne.lat;
+        requestData.ne_lon = ne.lng;
+    }
+
+    fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.vessels && data.vessels.length > 0) {
+            // Store current bounds
+            currentBounds = data.bounds;
+            
+            // Add new vessels
+            data.vessels.forEach(vessel => {
+                const marker = createShipMarker(vessel);
+                marker.options.vesselData = vessel;
+                if (layerVisibility.ships) {
+                    marker.addTo(map);
+                }
+                vesselMarkers.push(marker);
+            });
+            
+            const totalVesselCount = vesselMarkers.length;
+            
+            // Fit map to bounds if ocean region or custom bbox was used
+            if ((oceanRegion || customBounds) && data.bounds) {
+                map.fitBounds([
+                    [data.bounds.sw_lat, data.bounds.sw_lon],
+                    [data.bounds.ne_lat, data.bounds.ne_lon]
+                ]);
             }
-            vesselMarkers.push(marker);
-        });
-        
-        // Fit map to bounds if ocean region was selected
-        if (oceanRegion && data.bounds) {
-            map.fitBounds([
-                [data.bounds.sw_lat, data.bounds.sw_lon],
-                [data.bounds.ne_lat, data.bounds.ne_lon]
-            ]);
+            
+            const countDiv = document.getElementById('vessel-count');
+            const countText = document.getElementById('vessel-count-text');
+            countText.textContent = `${totalVesselCount} vessel${totalVesselCount !== 1 ? 's' : ''} loaded`;
+            countDiv.style.display = 'block';
+            
+            showResults('Vessel Tracking', `Loaded ${totalVesselCount} vessel(s) total. Use buttons below to check disasters, protected areas, or collisions.`);
+        } else {
+            showResults('Vessel Tracking', 'No vessels found in this area');
+            currentBounds = null;
         }
         
-        const countDiv = document.getElementById('vessel-count');
-        const countText = document.getElementById('vessel-count-text');
-        countText.textContent = `${data.count} vessel${data.count !== 1 ? 's' : ''} loaded`;
-        countDiv.style.display = 'block';
-        
-        showResults('Vessel Tracking', `Loaded ${data.count} vessel(s). Use buttons below to check disasters, protected areas, or collisions.`);
-    } else {
-        showResults('Vessel Tracking', 'No vessels found in this area');
-        currentBounds = null;
-    }
-    
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-})
-.catch(error => {
-    console.error('Error fetching vessels:', error);
-    showResults('Vessel Tracking', 'Failed to fetch vessels');
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-});
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    })
+    .catch(error => {
+        console.error('Error fetching vessels:', error);
+        showResults('Vessel Tracking', 'Failed to fetch vessels');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
 }
 
 // Function to check disasters in current area
@@ -891,7 +1025,7 @@ function checkDisastersInArea() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            clearDisasterMarkers();
+            // Don't clear existing disasters, just add new ones
             
             if (data.disasters && data.disasters.length > 0) {
                 addDisasterMarkers(data.disasters);
@@ -900,9 +1034,11 @@ function checkDisastersInArea() {
                     addDisasterShips(data.ships);
                 }
                 
-                showResults('Disaster Areas', `Found ${data.count} disaster(s) in the region`);
+                // Calculate total disaster count
+                const totalDisasterMarkers = disasterMarkers.filter(m => m instanceof L.Marker).length;
+                showResults('Disaster Areas', `Found ${totalDisasterMarkers} disaster(s) total in all regions`);
             } else {
-                showResults('Disaster Areas', 'No disasters found in this region');
+                showResults('Disaster Areas', `No new disasters found in this region. Total: ${disasterMarkers.filter(m => m instanceof L.Marker).length}`);
             }
         }
     })
@@ -995,13 +1131,74 @@ function checkEcaMpaInArea() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            clearEcaMpaLayer();
+            // Don't clear existing ECA/MPA, add new ones to the existing layer
             
             if (data.eca_mpa) {
-                addEcaMpaAreas(data.eca_mpa);
-                showResults('Protected Areas', `Found ${data.count} ECA/MPA area(s) with vessels in the region`);
+                // If no layer exists yet, create it normally
+                if (!ecaMpaLayer) {
+                    addEcaMpaAreas(data.eca_mpa);
+                } else {
+                    // Add new areas to existing layer
+                    const newLayer = L.geoJSON(data.eca_mpa, {
+                        style: function(feature) {
+                            if (feature.properties.type === 'ECA') {
+                                return {
+                                    fillColor: '#FFFF00',
+                                    fillOpacity: 0.3,
+                                    color: '#FFD700',
+                                    weight: 2,
+                                    opacity: 0.7
+                                };
+                            } else if (feature.properties.type === 'MPA') {
+                                return {
+                                    fillColor: '#FFA500', 
+                                    fillOpacity: 0.3,
+                                    color: '#FF8C00',
+                                    weight: 2,
+                                    opacity: 0.7
+                                };
+                            }
+                        },
+                        onEachFeature: function(feature, layer) {
+                            if (feature.properties && feature.properties.name) {
+                                const rawName = feature.properties.name;
+                                const cleanName = rawName.replace(/_/g, ' ').trim();
+                                
+                                let popupContent = `<strong>${feature.properties.type} Area</strong><br>`;
+                                popupContent += `Name: ${cleanName}<br>`;
+                                
+                                if (feature.properties.description) {
+                                    popupContent += `Description: ${feature.properties.description}`;
+                                }
+                                
+                                layer.bindPopup(popupContent);
+                            }
+                        }
+                    });
+                    
+                    // Add new layers to existing ecaMpaLayer
+                    newLayer.eachLayer(function(layer) {
+                        ecaMpaLayer.addLayer(layer);
+                    });
+                }
+                
+                // Count total areas
+                let totalAreas = 0;
+                if (ecaMpaLayer) {
+                    ecaMpaLayer.eachLayer(function() {
+                        totalAreas++;
+                    });
+                }
+                
+                showResults('Protected Areas', `Found ${totalAreas} ECA/MPA area(s) total with vessels`);
             } else {
-                showResults('Protected Areas', 'No ECA/MPA areas with vessels found in this region');
+                let totalAreas = 0;
+                if (ecaMpaLayer) {
+                    ecaMpaLayer.eachLayer(function() {
+                        totalAreas++;
+                    });
+                }
+                showResults('Protected Areas', `No new ECA/MPA areas found. Total: ${totalAreas}`);
             }
         }
     })
@@ -1021,10 +1218,27 @@ detectCollisions();
 }
 // Function to show results in sidebar
 function showResults(title, content) {
-document.getElementById('results-title').textContent = title;
-document.getElementById('results-content').innerHTML = content;
-document.getElementById('results-container').style.display = 'block';
+    const container = document.getElementById('results-container');
+    const cardId = 'card-' + title.toLowerCase().replace(/\s+/g, '-');
+    let existingCard = document.getElementById(cardId);
+    
+    if (existingCard) {
+        existingCard.querySelector('.card-content').innerHTML = content;
+    } else {
+        const card = document.createElement('div');
+        card.id = cardId;
+        card.style.cssText = 'margin-bottom: 15px; padding: 15px; background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;';
+        card.innerHTML = `
+            <h3 style="font-size: 16px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.2);">
+                ${title}
+            </h3>
+            <div class="card-content" style="font-size: 14px; line-height: 1.5;">${content}</div>
+        `;
+        container.appendChild(card);
+    }
+    container.style.display = 'block';
 }
+
 // Function to toggle legend
 function toggleLegend() {
 const legend = document.querySelector('.legend');
@@ -1057,6 +1271,29 @@ if (legend.style.display === 'none') {
 
 toggleButton.addEventListener('click', toggleLegend);
 
+// Add collision collapse handler
+const collisionHeader = document.getElementById('collision-header');
+if (collisionHeader) {
+    collisionHeader.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleCollisionCollapse();
+    });
+}
+
+// Add ocean region change handler to clear custom bbox
+document.getElementById('ocean-region').addEventListener('change', function() {
+    if (this.value && customBounds) {
+        // User selected ocean region, clear custom bbox
+        if (drawnRectangle) {
+            map.removeLayer(drawnRectangle);
+            drawnRectangle = null;
+        }
+        customBounds = null;
+        document.getElementById('bbox-status').style.display = 'none';
+        document.getElementById('draw-bbox-btn').innerHTML = '<i class="fas fa-draw-polygon"></i> Draw Custom Area';
+    }
+});
+
 // Add event listeners for toggle controls
 document.getElementById('toggle-ships').addEventListener('change', function() {
     toggleLayerVisibility('ships', this.checked);
@@ -1068,9 +1305,5 @@ document.getElementById('toggle-disasters').addEventListener('change', function(
 
 document.getElementById('toggle-eca-mpa').addEventListener('change', function() {
     toggleLayerVisibility('ecaMpa', this.checked);
-});
-
-document.getElementById('toggle-collisions').addEventListener('change', function() {
-    toggleLayerVisibility('collisions', this.checked);
 });
 });
