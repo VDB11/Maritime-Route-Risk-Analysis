@@ -37,5 +37,5 @@ class Config:
     
     # Server configuration
     DEBUG = True
-    HOST = '0.0.0.0'
-    PORT = 5000
+    HOST = '127.0.0.1'
+    PORT = 9018
