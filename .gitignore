@@ -5,3 +5,6 @@
 __pycache__
 *.zip
 Data
+data-process
+logs
+service.md
