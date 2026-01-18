@@ -417,117 +417,119 @@ function formatShipData(ships) {
     return html;
 }
 
-// Format basic port info
 function formatBasicInfo(port) {
     const basic = port.basic_info;
     
+    const tooltips = {
+        'Country': 'The country where this port is located',
+        'Water Body': 'The ocean, sea, or major water body where this port is situated',
+        'Coordinates': 'Geographic coordinates (latitude, longitude) of the port location',
+        'Harbor Size': 'Classification of the port based on its capacity and facilities (Small, Medium, Large, Very Large)',
+        'Harbor Type': 'The type of harbor construction or natural formation (Coastal Natural, River, Artificial, etc.)'
+    };
+    
     return `
         <div class="port-detail-row">
-            <span class="detail-label">Country</span>
+            <span class="detail-label">
+                Country
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips['Country']}</span>
+            </span>
             <span class="detail-value">${basic.country_code}</span>
         </div>
         <div class="port-detail-row">
-            <span class="detail-label">Water Body</span>
+            <span class="detail-label">
+                Water Body
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips['Water Body']}</span>
+            </span>
             <span class="detail-value">${basic.water_body}</span>
         </div>
         <div class="port-detail-row">
-            <span class="detail-label">Coordinates</span>
+            <span class="detail-label">
+                Coordinates
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips['Coordinates']}</span>
+            </span>
             <span class="detail-value">${basic.lat.toFixed(4)}, ${basic.lon.toFixed(4)}</span>
         </div>
         <div class="port-detail-row">
-            <span class="detail-label">Harbor Size</span>
+            <span class="detail-label">
+                Harbor Size
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips['Harbor Size']}</span>
+            </span>
             <span class="detail-value">${basic.harbor_size}</span>
         </div>
         <div class="port-detail-row">
-            <span class="detail-label">Harbor Type</span>
+            <span class="detail-label">
+                Harbor Type
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips['Harbor Type']}</span>
+            </span>
             <span class="detail-value">${basic.harbor_type}</span>
         </div>
     `;
 }
 
-// Format additional port details
 function formatAdditionalDetails(port) {
     const nav = port.navigational_details;
     const limits = port.vessel_limits;
     const facilities = port.facilities;
     
+    const tooltips = {
+        'Sailing Direction': 'Official sailing directions publication reference for navigating to this port',
+        'Nautical Chart': 'Official nautical chart number for this port area',
+        'Tidal Range': 'The difference in height between high tide and low tide',
+        'Entrance Width': 'Width of the main entrance channel to the harbor',
+        'Channel Depth': 'Depth of the main navigation channel at mean low water',
+        'Anchorage Depth': 'Water depth at designated anchorage areas',
+        'Max Vessel Length': 'Maximum length of vessel that can be accommodated at the port',
+        'Max Vessel Beam': 'Maximum beam (width) of vessel that can be accommodated',
+        'Max Vessel Draft': 'Maximum draft (depth below waterline) of vessel that can enter',
+        'Offshore Max Length': 'Maximum vessel length for offshore anchorage or operations',
+        'Offshore Max Beam': 'Maximum vessel beam for offshore anchorage or operations',
+        'Offshore Max Draft': 'Maximum vessel draft for offshore anchorage or operations',
+        'Harbor Use': 'Primary purpose or use category of the harbor (Commercial, Militaryetc.)',
+        'Port Security': 'Level of security measures and facilities at the port',
+        'Search & Rescue': 'Availability of search and rescue services',
+        'Medical Facilities': 'Availability of medical facilities and services at the port',
+        'Ballast Disposal': 'Facilities available for dirty ballast water disposal',
+        'Repairs': 'Level of ship repair capabilities',
+        'Dry Dock': 'Size and capacity of dry dock facilities'
+    };
+    
+    const createRow = (label, value) => `
+        <div class="port-detail-row">
+            <span class="detail-label">
+                ${label}
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">${tooltips[label]}</span>
+            </span>
+            <span class="detail-value small">${value}</span>
+        </div>
+    `;
+    
     return `
-        <div class="port-detail-row">
-            <span class="detail-label">Sailing Direction</span>
-            <span class="detail-value small">${nav.sailing_direction}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Nautical Chart</span>
-            <span class="detail-value small">${nav.nautical_chart}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Tidal Range</span>
-            <span class="detail-value small">${nav.tidal_range ? nav.tidal_range + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Entrance Width</span>
-            <span class="detail-value small">${nav.entrance_width ? nav.entrance_width + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Channel Depth</span>
-            <span class="detail-value small">${nav.channel_depth ? nav.channel_depth + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Anchorage Depth</span>
-            <span class="detail-value small">${nav.anchorage_depth ? nav.anchorage_depth + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Max Vessel Length</span>
-            <span class="detail-value small">${limits.max_vessel_length ? limits.max_vessel_length + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Max Vessel Beam</span>
-            <span class="detail-value small">${limits.max_vessel_beam ? limits.max_vessel_beam + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Max Vessel Draft</span>
-            <span class="detail-value small">${limits.max_vessel_draft ? limits.max_vessel_draft + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Offshore Max Length</span>
-            <span class="detail-value small">${limits.offshore_max_length ? limits.offshore_max_length + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Offshore Max Beam</span>
-            <span class="detail-value small">${limits.offshore_max_beam ? limits.offshore_max_beam + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Offshore Max Draft</span>
-            <span class="detail-value small">${limits.offshore_max_draft ? limits.offshore_max_draft + ' m' : 'N/A'}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Harbor Use</span>
-            <span class="detail-value small">${facilities.harbor_use}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Port Security</span>
-            <span class="detail-value small">${facilities.port_security}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Search & Rescue</span>
-            <span class="detail-value small">${facilities.search_rescue}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Medical Facilities</span>
-            <span class="detail-value small">${facilities.medical_facilities}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Ballast Disposal</span>
-            <span class="detail-value small">${facilities.dirty_ballast_disposal}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Repairs</span>
-            <span class="detail-value small">${facilities.repairs}</span>
-        </div>
-        <div class="port-detail-row">
-            <span class="detail-label">Dry Dock</span>
-            <span class="detail-value small">${facilities.dry_dock}</span>
-        </div>
+        ${createRow('Sailing Direction', nav.sailing_direction)}
+        ${createRow('Nautical Chart', nav.nautical_chart)}
+        ${createRow('Tidal Range', nav.tidal_range ? nav.tidal_range + ' m' : 'N/A')}
+        ${createRow('Entrance Width', nav.entrance_width ? nav.entrance_width + ' m' : 'N/A')}
+        ${createRow('Channel Depth', nav.channel_depth ? nav.channel_depth + ' m' : 'N/A')}
+        ${createRow('Anchorage Depth', nav.anchorage_depth ? nav.anchorage_depth + ' m' : 'N/A')}
+        ${createRow('Max Vessel Length', limits.max_vessel_length ? limits.max_vessel_length + ' m' : 'N/A')}
+        ${createRow('Max Vessel Beam', limits.max_vessel_beam ? limits.max_vessel_beam + ' m' : 'N/A')}
+        ${createRow('Max Vessel Draft', limits.max_vessel_draft ? limits.max_vessel_draft + ' m' : 'N/A')}
+        ${createRow('Offshore Max Length', limits.offshore_max_length ? limits.offshore_max_length + ' m' : 'N/A')}
+        ${createRow('Offshore Max Beam', limits.offshore_max_beam ? limits.offshore_max_beam + ' m' : 'N/A')}
+        ${createRow('Offshore Max Draft', limits.offshore_max_draft ? limits.offshore_max_draft + ' m' : 'N/A')}
+        ${createRow('Harbor Use', facilities.harbor_use)}
+        ${createRow('Port Security', facilities.port_security)}
+        ${createRow('Search & Rescue', facilities.search_rescue)}
+        ${createRow('Medical Facilities', facilities.medical_facilities)}
+        ${createRow('Ballast Disposal', facilities.dirty_ballast_disposal)}
+        ${createRow('Repairs', facilities.repairs)}
+        ${createRow('Dry Dock', facilities.dry_dock)}
     `;
 }
 

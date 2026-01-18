@@ -629,6 +629,63 @@
             border-radius: 3px;
         }
 
+        .detail-label {
+            font-size: 14px;
+            color: #888;
+            font-weight: 500;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: help;
+        }
+
+        .detail-label i {
+            color: #4facfe;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        .info-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: rgba(0, 0, 0, 0.95);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: normal;
+            width: 220px;
+            margin-bottom: 8px;
+            z-index: 1000;
+            border: 1px solid #4facfe;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .detail-label:hover .info-tooltip {
+            opacity: 1;
+        }
+
+        .info-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 20px;
+            border: 6px solid transparent;
+            border-top-color: #4facfe;
+        }
+
+        .header .subtitle {
+            color: #4facfe;
+            font-size: 24px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
         .no-data {
             text-align: center;
             padding: 30px;

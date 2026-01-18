@@ -265,7 +265,6 @@ function darkenColor(color) {
     return color; // Fallback
 }
 
-// Function to clear all markers and layers
 function clearMapLayers() {
     if (routeLayer) {
         map.removeLayer(routeLayer);
@@ -316,17 +315,19 @@ function clearMapLayers() {
     // Clear stored route bounds
     window.currentRouteBounds = null;
 
+    // CLEAR collision lines properly
     if (collisionLines) {
         collisionLines.forEach(line => {
             if (map.hasLayer(line)) {
                 map.removeLayer(line);
             }
         });
-        collisionLines = [];
+        collisionLines = []; // Clear the array
     }
     
     // Clear collision data
     window.currentRouteCollisions = [];
+    window.chokepointCollisions = [];
 
     // Clear piracy markers
     if (window.piracyMarkers) {
@@ -848,16 +849,8 @@ function addEcaMpaAreas(ecaMpaData) {
 function addCollisionLines(collisionsData) {
     console.log("🎨 DRAWING COLLISION LINES:", collisionsData);
     
-    // Remove existing collision lines
-    if (collisionLines) {
-        collisionLines.forEach(line => {
-            if (map.hasLayer(line)) {
-                map.removeLayer(line);
-            }
-        });
-    }
-    collisionLines = [];
-
+    // DON'T clear the array - we want to accumulate lines from multiple sources
+    // Only remove these specific lines from the map if they exist
     if (!collisionsData || collisionsData.length === 0) return;
 
     // ✅ ONLY SHOW CRITICAL COLLISIONS
@@ -881,6 +874,7 @@ function addCollisionLines(collisionsData) {
             opacity: 0.9,
             dashArray: '5, 5'
         });
+        
         const popupContent = `
             <div style="font-family: Arial, sans-serif; min-width: 250px;">
                 <div style="background: #ff0000; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
@@ -927,7 +921,7 @@ function addCollisionLines(collisionsData) {
         collisionLines.push(collisionLine);
     });
     
-    console.log(`✅ Added ${criticalCollisions.length} CRITICAL collision lines`);
+    console.log(`✅ Added ${criticalCollisions.length} CRITICAL collision lines (Total lines now: ${collisionLines.length})`);
 }
 
 // Debug function to check collision data
@@ -1191,11 +1185,16 @@ function goToCollision(index) {
         const centerLat = (vesselA.lat + vesselB.lat) / 2;
         const centerLon = (vesselA.lon + vesselB.lon) / 2;
         
-        map.setView([centerLat, centerLon], 10);
+        map.setView([centerLat, centerLon], 12, {
+            animate: true,
+            duration: 0.5
+        });
         
-        // Open the collision line popup if available
-        if (collisionLines && collisionLines[index]) {
-            collisionLines[index].openPopup();
+        if (collisionLines && collisionLines.length > index) {
+            // Wait for map animation to complete, then open popup
+            setTimeout(() => {
+                collisionLines[index].openPopup();
+            }, 600);
         }
     }
 }
@@ -1377,9 +1376,17 @@ function showChokepoints() {
                     if (collisions && collisions.length > 0) {
                         console.log(`Found ${collisions.length} collisions in ${cp.name}`);
                         
-                        // Store collisions globally with chokepoint name
-                        const startIndex = window.chokepointCollisions.length;
-                        window.chokepointCollisions.push(...collisions);
+                        // Store the starting index in collisionLines array BEFORE adding new lines
+                        const collisionLinesStartIndex = collisionLines.length;
+                        
+                        // Store collisions globally with their line indices
+                        const collisionsWithIndices = collisions.map((collision, idx) => ({
+                            ...collision,
+                            lineIndex: collisionLinesStartIndex + idx,
+                            chokepointName: cp.name
+                        }));
+                        
+                        window.chokepointCollisions.push(...collisionsWithIndices);
                         
                         addCollisionLines(collisions);
                         
@@ -1421,7 +1428,7 @@ function showChokepoints() {
 
                         let html = '';
                         collisions.forEach((collision, index) => {
-                            const globalIndex = startIndex + index;
+                            const globalIndex = window.chokepointCollisions.length - collisions.length + index;
                             const vesselA = collision.vessel_a;
                             const vesselB = collision.vessel_b;
                             
@@ -1934,27 +1941,26 @@ function goToChokepointCollision(index) {
         const centerLat = (vesselA.lat + vesselB.lat) / 2;
         const centerLon = (vesselA.lon + vesselB.lon) / 2;
         
-        map.setView([centerLat, centerLon], 10);
+        console.log(`Navigating to chokepoint collision ${index} in ${collision.chokepointName}`);
+        console.log(`Collision line index: ${collision.lineIndex}`);
+        console.log(`Total collision lines: ${collisionLines.length}`);
         
-        // Find and open the collision line popup
-        if (collisionLines) {
-            collisionLines.forEach(line => {
-                const lineLatLngs = line.getLatLngs();
-                if (lineLatLngs.length === 2) {
-                    const lat1 = lineLatLngs[0].lat;
-                    const lon1 = lineLatLngs[0].lng;
-                    const lat2 = lineLatLngs[1].lat;
-                    const lon2 = lineLatLngs[1].lng;
-                    
-                    if ((Math.abs(lat1 - vesselA.lat) < 0.0001 && Math.abs(lon1 - vesselA.lon) < 0.0001 &&
-                         Math.abs(lat2 - vesselB.lat) < 0.0001 && Math.abs(lon2 - vesselB.lon) < 0.0001) ||
-                        (Math.abs(lat1 - vesselB.lat) < 0.0001 && Math.abs(lon1 - vesselB.lon) < 0.0001 &&
-                         Math.abs(lat2 - vesselA.lat) < 0.0001 && Math.abs(lon2 - vesselA.lon) < 0.0001)) {
-                        line.openPopup();
-                    }
-                }
-            });
-        }
+        map.setView([centerLat, centerLon], 12, {
+            animate: true,
+            duration: 0.5
+        });
+        
+        // Use the stored line index to open the correct popup
+        setTimeout(() => {
+            if (collision.lineIndex !== undefined && 
+                collisionLines && 
+                collision.lineIndex < collisionLines.length) {
+                console.log(`Opening popup for line index ${collision.lineIndex}`);
+                collisionLines[collision.lineIndex].openPopup();
+            } else {
+                console.log(`Could not find collision line - lineIndex: ${collision.lineIndex}, total lines: ${collisionLines.length}`);
+            }
+        }, 600);
     }
 }
 
@@ -1994,7 +2000,6 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleLayerVisibility('protected', this.checked);
     });
 
-    // REMOVED: document.getElementById('toggle-vessels').addEventListener('change', function() { ... });
 });
 
 // Calculate route button click
