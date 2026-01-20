@@ -2261,3 +2261,22 @@ document.getElementById('calculate-route').addEventListener('click', function() 
         alert('Failed to calculate route: ' + error.message);
     });
 });
+
+// Sidebar toggle functionality
+document.addEventListener("DOMContentLoaded", () => {
+    const sidebar = document.querySelector(".sidebar");
+    const closeBtn = document.getElementById("sidebar-close");
+    const openBtn = document.getElementById("sidebar-open");
+
+    closeBtn.addEventListener("click", () => {
+        sidebar.classList.add("collapsed");
+        openBtn.style.display = 'block';
+        map.invalidateSize();
+    });
+
+    openBtn.addEventListener("click", () => {
+        sidebar.classList.remove("collapsed");
+        openBtn.style.display = 'none';
+        map.invalidateSize();
+    });
+});
