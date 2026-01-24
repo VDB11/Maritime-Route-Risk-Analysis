@@ -1,0 +1,9 @@
+In route planner- remove too much ship details.
+on top in the ship name section. Add a See Vessel Details button.
+When clicked go to new tab (new route, new scripts)
+
+originName must be geocoded. Show ship route from origin to the ship. Distance covered.
+Show remaining distance IF CLEAN destination is available.
+If not just show ETA and destinationName.
+Only that ship. Show additional details here (not in planner)
+See what else can be added

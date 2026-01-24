@@ -4,7 +4,7 @@ from geopy.distance import geodesic
 
 class PiracyMonitor:
     def __init__(self):
-        self.url = "https://icc-ccs.org/wp-json/wpgmza/v1/features/base64eJyrVkrLzClJLVKyUqqOUcpNLIjPTIlRsopRMrSMUdIBiRRnlBZ4uhQDBaNjgQLJpcUl+blumak5KRCxWqVaABdMFvM"
+        self.url = "https://icc-ccs.org/wp-json/wpgmza/v1/features"
         self.piracy_incidents = []
         self.load_incidents()
     

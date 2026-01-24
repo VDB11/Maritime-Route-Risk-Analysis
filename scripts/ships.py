@@ -76,8 +76,8 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
                 'boatName': report.get('boatName', '').upper(),
                 'mmsi': report.get('mmsi'),
                 'country': report.get('country'),
-                'vesselType': vessel_type,
-                'point': point,
+                'vesselType': report.get('vesselType'),
+                'point': report.get('point'),
                 'destinationName': report.get('destinationName', '').upper(),
                 'boundingBox': report.get('boundingBox'),
                 'speedKmh': report.get('speedKmh'),
@@ -85,7 +85,17 @@ def get_ships_in_bbox(bbox_dict, api_key=None, radius_fallback_km=50):
                 'draughtMeters': report.get('draughtMeters'),
                 'lengthMeters': report.get('lengthMeters'),
                 'widthMeters': report.get('widthMeters'),
-                'imo': report.get('imo')
+                'imo': report.get('imo'),
+                'callSign': report.get('callSign'),
+                'timeSecUtc': report.get('timeSecUtc'),
+                'etaSecUtc': report.get('etaSecUtc'),
+                'destination': report.get('destination'),
+                'heightMeters': report.get('heightMeters'),
+                'id': report.get('id'),
+                'fuelType': report.get('fuelType'),
+                'captain': report.get('captain'),
+                'phone': report.get('phone'),
+                'atis': report.get('atis')
             }
             filtered_reports.append(filtered_report)
         

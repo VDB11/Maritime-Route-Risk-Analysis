@@ -9,7 +9,7 @@ const map = L.map('map', {
 
 // Add base layers
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
+    attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
     maxZoom: 19
 }).addTo(map);
 
@@ -408,111 +408,58 @@ function createShipMarker(ship) {
             </p>
         </div>
         
-        <!-- Basic Info Section -->
+        <!-- See Vessel Details Button -->
         <div style="margin-bottom: 12px;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-fingerprint"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
-                </div>
+            <button onclick="openVesselDetails(${JSON.stringify(ship).replace(/"/g, '&quot;')}); event.stopPropagation();"
+                    style="width: 100%; background: linear-gradient(135deg, #4facfe 0%, #3a8fd4 100%); 
+                           color: white; border: none; padding: 10px; border-radius: 6px; 
+                           font-weight: 600; cursor: pointer; font-family: Arial, sans-serif;
+                           transition: all 0.3s ease; font-size: 14px;"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(79, 172, 254, 0.4)';"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                <i class="fas fa-ship"></i> See Vessel Details
+            </button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-fingerprint"></i>
             </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-flag"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Flag</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.country || 'N/A'}</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.destinationName || 'Unknown'}</div>
-                </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
+                <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
             </div>
         </div>
         
-        <!-- Position & Dimensions Section -->
-        <div style="margin-bottom: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-location-dot"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Position</div>
-                    <div style="color: #2d3748; font-size: 13px;">${formattedPosition}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-map-marker-alt"></i>
             </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-ruler-combined"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
-                    <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
-                </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
+                <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
             </div>
         </div>
         
-        <!-- Navigation Data Section - Horizontal Layout -->
-        <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
-                <!-- Speed -->
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-gauge-high" style="color: #2196F3; font-size: 10px;"></i>
-                        Speed
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedSpeed}</div>
-                </div>
-                
-                <!-- Bearing -->
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-compass" style="color: #2196F3; font-size: 10px;"></i>
-                        Bearing
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedBearing}</div>
-                </div>
-                
-                <!-- Draught -->
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-water" style="color: #2196F3; font-size: 10px;"></i>
-                        Draught
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedDraught}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-gauge-high"></i>
+            </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Speed</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedSpeed}</div>
             </div>
         </div>
         
-        <!-- Additional Info (if available) -->
-        ${ship.imo ? `
-        <div style="margin-top: 10px; padding: 8px; background: #e8f5e8; border-radius: 4px; border-left: 3px solid #4CAF50;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                <div style="color: #4CAF50; font-size: 12px; width: 20px;">
-                    <i class="fas fa-id-card"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">IMO Number</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.imo}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-ruler-combined"></i>
+            </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
             </div>
         </div>
-        ` : ''}
-        
-        <!-- Weather Forecast Section (MOVED TO BOTTOM) -->
-        ${createWeatherSection(ship.point.latitude, ship.point.longitude).outerHTML}
     </div>
 `;
 
@@ -1666,10 +1613,10 @@ return container;
 function createPiracyMarker(incident) {
     const piracyIcon = L.divIcon({
         className: 'piracy-icon',
-        html: `<i class="fas fa-skull-crossbones" style="color: #8B0000; font-size: 18px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);"></i>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -15]
+        html: `<i class="fas fa-skull-crossbones" style="color: #8B0000; font-size: 15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);"></i>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+        popupAnchor: [0, -10]
     });
     
     const popupHtml = `
@@ -1929,6 +1876,14 @@ function toggleChokepointCollisionDropdown(chokepointName) {
             icon.className = 'fas fa-chevron-down';
         }
     }
+}
+
+function openVesselDetails(shipData) {
+    const mmsi = shipData.mmsi;
+    // Store ship data in sessionStorage
+    sessionStorage.setItem(`vessel_${mmsi}`, JSON.stringify(shipData));
+    // Open new tab
+    window.open(`/vessel_details?mmsi=${mmsi}`, '_blank');
 }
 
 // Function to navigate to chokepoint collision on map

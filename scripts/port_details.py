@@ -246,6 +246,12 @@ def get_expected_arrivals(port_lat, port_lon, port_name, port_code, radius_km=50
             destination = (report.get("destinationName") or "").strip()
             if not destination:
                 continue
+
+            if ">>" in destination:
+                destination = destination.split(">>")[-1]
+            elif ">" in destination:
+                destination = destination.split(">")[-1]
+            destination = destination.strip()
                 
             dest_lower = destination.lower()
             dest_nospace = dest_lower.replace(" ", "")

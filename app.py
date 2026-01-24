@@ -11,6 +11,7 @@ from weather_details import get_weather_forecast
 from piracy_tracker import piracy_monitor
 from check_chokepoint import get_chokepoints_on_route
 from port_details import get_port_details_data
+from vessel_details import enrich_vessel_with_origin
 from config import Config
 import threading
 import requests
@@ -76,6 +77,10 @@ def demo_map():
 @app.route('/port_details')
 def port_details_page():
     return render_template('port_details.html')
+
+@app.route('/vessel_details')
+def vessel_details_page():
+    return render_template('vessel_details.html')
 
 @app.route('/api/water_bodies')
 def get_water_bodies_api():
@@ -930,6 +935,24 @@ def get_port_details_api(port_code):
         
     except Exception as e:
         print(f"Error in port details API: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vessel_details/<mmsi>', methods=['POST'])
+def get_vessel_details_api(mmsi):
+    try:
+        # Get vessel data from request body (sent from frontend)
+        vessel_data = request.json.get('vessel_data')
+        
+        if not vessel_data:
+            return jsonify({'error': 'No vessel data provided'}), 400
+        
+        # Enrich with origin name from VesselFinder
+        enriched_vessel = enrich_vessel_with_origin(vessel_data, mmsi)
+        
+        return jsonify({'vessel': enriched_vessel})
+        
+    except Exception as e:
+        print(f"Error in vessel details API: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
