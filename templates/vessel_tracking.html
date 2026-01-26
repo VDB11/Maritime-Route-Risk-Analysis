@@ -46,6 +46,57 @@
             font-size: 20px;
         }
 
+        .sidebar {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .sidebar.collapsed {
+            display: none;
+        }
+
+        .sidebar-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 1000;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .sidebar-open {
+            position: absolute;
+            top: 80px;
+            left: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            background: white;
+            color: black;
+            border: 2px solid rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 1000;
+            display: none;
+            margin-top: 1px;
+        }
+
+        .sidebar-open i {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
         @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
@@ -55,6 +106,7 @@
 <body>
     <div class="container">
         <div class="sidebar">
+            <button id="sidebar-close" class="sidebar-close">✕</button>
             <div class="header-container">
                 <div class="header-icon">
                     <i class="fas fa-ship"></i>
@@ -164,6 +216,9 @@
         <div class="main-content">
             <div class="map-container">
                 <div id="map"></div>
+                <button id="sidebar-open" class="sidebar-open">
+                    <i class="fas fa-bars"></i>
+                </button>
                 
                 <!-- Legend Container -->
                 <div class="legend-container">

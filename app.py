@@ -16,6 +16,7 @@ from config import Config
 import threading
 import requests
 import pandas as pd
+import json
 import concurrent.futures
 from functools import partial
 
@@ -937,10 +938,63 @@ def get_port_details_api(port_code):
         print(f"Error in port details API: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/country_flag/<country_code>')
+def get_country_flag(country_code):
+    try:
+        with open('country-flags-main/countries.json', 'r', encoding='utf-8') as f:
+            countries = json.load(f)
+        
+        # Try uppercase first (most common format)
+        country_code_upper = country_code.upper()
+        
+        if country_code_upper in countries:
+            actual_code = country_code_upper
+        elif country_code in countries:
+            actual_code = country_code
+        else:
+            return jsonify({'success': False, 'error': 'Country code not found'})
+        
+        svg_path = os.path.join('country-flags-main', 'svg', f'{actual_code.lower()}.svg')
+        
+        if os.path.exists(svg_path):
+            with open(svg_path, 'r', encoding='utf-8') as svg_file:
+                svg_content = svg_file.read()
+            return jsonify({
+                'success': True,
+                'svg': svg_content,
+                'country_name': countries[actual_code]
+            })
+        
+        return jsonify({'success': False, 'error': 'SVG file not found'})
+        
+    except Exception as e:
+        print(f"Error loading flag: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/find_country_code/<path:country_name>')
+def find_country_code(country_name):
+    try:
+        with open('country-flags-main/countries.json', 'r', encoding='utf-8') as f:
+            countries = json.load(f)
+        
+        # Search for country by name
+        for code, name in countries.items():
+            if name.lower() == country_name.lower():
+                return jsonify({
+                    'success': True,
+                    'country_code': code
+                })
+        
+        print(f"Country not found: {country_name}")
+        return jsonify({'success': False, 'error': 'Country not found'})
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/vessel_details/<mmsi>', methods=['POST'])
 def get_vessel_details_api(mmsi):
     try:
-        # Get vessel data from request body (sent from frontend)
         vessel_data = request.json.get('vessel_data')
         
         if not vessel_data:
@@ -948,6 +1002,24 @@ def get_vessel_details_api(mmsi):
         
         # Enrich with origin name from VesselFinder
         enriched_vessel = enrich_vessel_with_origin(vessel_data, mmsi)
+        
+        # Look up destination port name from port_df
+        if enriched_vessel.get('destinationName'):
+            dest_code = enriched_vessel['destinationName'].replace('_', ' ').strip()
+            
+            # Try exact match first
+            matching_port = port_df[port_df['port_code'] == dest_code]
+            
+            # If no match and code has no spaces, try adding a space before last 3 chars
+            if matching_port.empty and ' ' not in dest_code and len(dest_code) >= 5:
+                # Convert MACAS -> MA CAS
+                formatted_code = dest_code[:-3] + ' ' + dest_code[-3:]
+                matching_port = port_df[port_df['port_code'] == formatted_code]
+                if not matching_port.empty:
+                    dest_code = formatted_code  # Use the formatted version
+            
+            if not matching_port.empty:
+                enriched_vessel['destinationPortName'] = matching_port.iloc[0]['port_name']
         
         return jsonify({'vessel': enriched_vessel})
         

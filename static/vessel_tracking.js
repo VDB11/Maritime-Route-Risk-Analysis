@@ -321,7 +321,6 @@ function enableBboxDrawing() {
     });
 }
 
-// Function to create ship marker
 function createShipMarker(ship) {
     const vesselType = ship.vesselType || 'UNKNOWN';
     
@@ -342,11 +341,11 @@ function createShipMarker(ship) {
     const rawDestination = ship.destinationName || 'Unknown';
     const cleanDestination = rawDestination.replace(/_/g, ' ').trim();
     
-    let shipColor = '#2E7D32'; // LIGHT GREEN for all other ships
+    let shipColor = '#2E7D32';
     if (vesselType === 'TANKER') {
-        shipColor = '#FF9800'; // Orange for tankers
+        shipColor = '#FF9800';
     } else if (vesselType === 'CARGO_SHIP') {
-        shipColor = '#2196F3'; // Blue for cargo ships
+        shipColor = '#2196F3';
     }
     
     const shipIcon = L.divIcon({
@@ -358,12 +357,8 @@ function createShipMarker(ship) {
     });
     
     const formattedSpeed = ship.speedKmh ? `${ship.speedKmh} km/h` : 'N/A';
-    const formattedBearing = ship.bearingDeg ? `${ship.bearingDeg}°` : 'N/A';
-    const formattedDraught = ship.draughtMeters ? `${ship.draughtMeters}m` : 'N/A';
     const formattedDimensions = ship.lengthMeters && ship.widthMeters ? 
         `${ship.lengthMeters}m × ${ship.widthMeters}m` : 'N/A';
-    const formattedPosition = ship.point ? 
-        `${ship.point.latitude?.toFixed(4) || 'N/A'}, ${ship.point.longitude?.toFixed(4) || 'N/A'}` : 'N/A';
     
     const popupHtml = `
     <div style="font-family: Arial, sans-serif; min-width: 280px; max-width: 320px;">
@@ -376,101 +371,58 @@ function createShipMarker(ship) {
             </p>
         </div>
         
+        <!-- See Vessel Details Button -->
         <div style="margin-bottom: 12px;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-fingerprint"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
-                </div>
+            <button onclick="openVesselDetails(${JSON.stringify(ship).replace(/"/g, '&quot;')}); event.stopPropagation();"
+                    style="width: 100%; background: linear-gradient(135deg, #4facfe 0%, #3a8fd4 100%); 
+                           color: white; border: none; padding: 10px; border-radius: 6px; 
+                           font-weight: 600; cursor: pointer; font-family: Arial, sans-serif;
+                           transition: all 0.3s ease; font-size: 14px;"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(79, 172, 254, 0.4)';"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                <i class="fas fa-ship"></i> See Vessel Details
+            </button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-fingerprint"></i>
             </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-flag"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Flag</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.country || 'N/A'}</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
-                    <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
-                </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
+                <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
             </div>
         </div>
         
-        <div style="margin-bottom: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-location-dot"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Position</div>
-                    <div style="color: #2d3748; font-size: 13px;">${formattedPosition}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-map-marker-alt"></i>
             </div>
-            
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                    <i class="fas fa-ruler-combined"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
-                    <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
-                </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
+                <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
             </div>
         </div>
         
-        <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-gauge-high" style="color: #2196F3; font-size: 10px;"></i>
-                        Speed
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedSpeed}</div>
-                </div>
-                
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-compass" style="color: #2196F3; font-size: 10px;"></i>
-                        Bearing
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedBearing}</div>
-                </div>
-                
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                        <i class="fas fa-water" style="color: #2196F3; font-size: 10px;"></i>
-                        Draught
-                    </div>
-                    <div style="color: #2d3748; font-size: 13px; font-weight: 600;">${formattedDraught}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-gauge-high"></i>
+            </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Speed</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedSpeed}</div>
             </div>
         </div>
         
-        ${ship.imo ? `
-        <div style="margin-top: 10px; padding: 8px; background: #e8f5e8; border-radius: 4px; border-left: 3px solid #4CAF50;">
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-                <div style="color: #4CAF50; font-size: 12px; width: 20px;">
-                    <i class="fas fa-id-card"></i>
-                </div>
-                <div>
-                    <div style="font-weight: 600; color: #4a5568; font-size: 12px;">IMO Number</div>
-                    <div style="color: #2d3748; font-size: 13px;">${ship.imo}</div>
-                </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-ruler-combined"></i>
+            </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
             </div>
         </div>
-        ` : ''}
     </div>
 `;
 
@@ -1253,6 +1205,15 @@ if (legend.style.display === 'none') {
     button.title = 'Show Legend';
 }
 }
+
+function openVesselDetails(shipData) {
+    const mmsi = shipData.mmsi;
+    // Store ship data in sessionStorage
+    sessionStorage.setItem(`vessel_${mmsi}`, JSON.stringify(shipData));
+    // Open new tab
+    window.open(`/vessel_details?mmsi=${mmsi}`, '_blank');
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
 const legend = document.querySelector('.legend');
@@ -1306,4 +1267,25 @@ document.getElementById('toggle-disasters').addEventListener('change', function(
 document.getElementById('toggle-eca-mpa').addEventListener('change', function() {
     toggleLayerVisibility('ecaMpa', this.checked);
 });
+});
+
+// Sidebar toggle functionality
+document.addEventListener("DOMContentLoaded", () => {
+    const sidebar = document.querySelector(".sidebar");
+    const closeBtn = document.getElementById("sidebar-close");
+    const openBtn = document.getElementById("sidebar-open");
+
+    if (closeBtn && openBtn && sidebar) {
+        closeBtn.addEventListener("click", () => {
+            sidebar.classList.add("collapsed");
+            openBtn.style.display = 'block';
+            map.invalidateSize();
+        });
+
+        openBtn.addEventListener("click", () => {
+            sidebar.classList.remove("collapsed");
+            openBtn.style.display = 'none';
+            map.invalidateSize();
+        });
+    }
 });

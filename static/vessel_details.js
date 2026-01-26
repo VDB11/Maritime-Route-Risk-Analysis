@@ -24,6 +24,15 @@ function buildRoutePopup(vessel, type) {
         ? vessel.destinationName.replace(/_/g, ' ').trim()
         : 'Unknown';
 
+    // Determine color based on vessel type
+    const vesselType = vessel.vesselType || 'UNKNOWN';
+    let shipColor = '#2E7D32'; // Light green default
+    if (vesselType === 'TANKER') {
+        shipColor = '#FF9800'; // Orange for tankers
+    } else if (vesselType === 'CARGO_SHIP') {
+        shipColor = '#2196F3'; // Blue for cargo ships
+    }
+
     if (type === 'completed') {
         const coveredKm = vessel.route_from_origin?.distance_km;
 
@@ -38,10 +47,11 @@ function buildRoutePopup(vessel, type) {
             ">
                 <div style="
                     padding: 10px 12px;
-                    background: #f8f9fa;
+                    background: ${shipColor};
                     border-bottom: 1px solid #e2e8f0;
+                    color: white;
                 ">
-                    <div style="font-weight: 600; font-size: 14px; color: #2d3748;">
+                    <div style="font-weight: 600; font-size: 14px;">
                         Completed Route
                     </div>
                 </div>
@@ -79,10 +89,11 @@ function buildRoutePopup(vessel, type) {
             ">
                 <div style="
                     padding: 10px 12px;
-                    background: #f8f9fa;
+                    background: ${shipColor};
                     border-bottom: 1px solid #e2e8f0;
+                    color: white;
                 ">
-                    <div style="font-weight: 600; font-size: 14px; color: #2d3748;">
+                    <div style="font-weight: 600; font-size: 14px;">
                         Remaining Route
                     </div>
                 </div>
@@ -245,11 +256,20 @@ function initializeMap(lat, lon, vesselName, vessel) {
             .bindPopup(`<strong>Origin</strong><br>${vessel.originName || 'Unknown'}`);
         bounds.push([vessel.origin_lat, vessel.origin_lon]);
     }
+
+    // Current position marker
+    const vesselType = vessel.vesselType || 'UNKNOWN';
+    let shipColor = '#2E7D32'; // Light green default
+    if (vesselType === 'TANKER') {
+        shipColor = '#FF9800'; // Orange for tankers
+    } else if (vesselType === 'CARGO_SHIP') {
+        shipColor = '#2196F3'; // Blue for cargo ships
+    }
     
     // Current position marker
     const vesselIcon = L.divIcon({
         className: 'vessel-marker',
-        html: `<i class="fas fa-ship" style="font-size: 24px; color: #4facfe; text-shadow: 0 0 10px rgba(79, 172, 254, 0.8);"></i>`,
+        html: `<i class="fas fa-ship" style="font-size: 24px; color: ${shipColor}; text-shadow: 0 0 10px rgba(79, 172, 254, 0.8);"></i>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
     });
@@ -403,11 +423,23 @@ function formatRouteData(vessel) {
 
 function formatVesselData(vessel) {
     const vesselName = vessel.boatName ? vessel.boatName.replace(/_/g, ' ').trim() : 'Unknown Vessel';
-    const destination = vessel.destinationName ? vessel.destinationName.replace(/_/g, ' ').trim() : 'Unknown';
+
+    // Format destination with port name if available
+    let destination = 'Unknown';
+    if (vessel.destinationName) {
+        const destCode = vessel.destinationName.replace(/_/g, ' ').trim();
+        if (vessel.destinationPortName) {
+            destination = `${vessel.destinationPortName} (${destCode})`;
+        } else {
+            destination = destCode;
+        }
+    }
+
     const origin = vessel.originName || 'Unknown';
     const vesselType = vessel.vesselType ? vessel.vesselType.replace(/_/g, ' ').trim() : 'Unknown';
     
-    return `
+    // Basic info (always visible)
+    const basicInfo = `
         <div class="vessel-detail-row">
             <span class="detail-label">
                 Vessel Name
@@ -432,29 +464,13 @@ function formatVesselData(vessel) {
             </span>
             <span class="detail-value">${vessel.mmsi || 'N/A'}</span>
         </div>
-        <div class="vessel-detail-row">
-            <span class="detail-label">
-                IMO Number
-                <i class="fas fa-info-circle"></i>
-                <span class="info-tooltip">International Maritime Organization unique identifier</span>
-            </span>
-            <span class="detail-value">${vessel.imo || 'N/A'}</span>
-        </div>
-        <div class="vessel-detail-row">
-            <span class="detail-label">
-                Call Sign
-                <i class="fas fa-info-circle"></i>
-                <span class="info-tooltip">International radio call sign assigned to vessel</span>
-            </span>
-            <span class="detail-value">${vessel.callSign || 'N/A'}</span>
-        </div>
-        <div class="vessel-detail-row">
+        <div class="vessel-detail-row" id="flag-country-row">
             <span class="detail-label">
                 Flag Country
                 <i class="fas fa-info-circle"></i>
                 <span class="info-tooltip">Country where the vessel is registered</span>
             </span>
-            <span class="detail-value">${vessel.country || 'N/A'}</span>
+            <span class="detail-value" id="flag-country-value">${vessel.country || 'N/A'}</span>
         </div>
         <div class="vessel-detail-row">
             <span class="detail-label">
@@ -496,6 +512,26 @@ function formatVesselData(vessel) {
                 <span class="info-tooltip">Current course direction in degrees (0° = North)</span>
             </span>
             <span class="detail-value">${vessel.bearingDeg ? vessel.bearingDeg + '°' : 'N/A'}</span>
+        </div>
+    `;
+    
+    // Rest of the function remains the same...
+    const additionalInfo = `
+        <div class="vessel-detail-row">
+            <span class="detail-label">
+                IMO Number
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">International Maritime Organization unique identifier</span>
+            </span>
+            <span class="detail-value">${vessel.imo || 'N/A'}</span>
+        </div>
+        <div class="vessel-detail-row">
+            <span class="detail-label">
+                Call Sign
+                <i class="fas fa-info-circle"></i>
+                <span class="info-tooltip">International radio call sign assigned to vessel</span>
+            </span>
+            <span class="detail-value">${vessel.callSign || 'N/A'}</span>
         </div>
         <div class="vessel-detail-row">
             <span class="detail-label">
@@ -578,8 +614,71 @@ function formatVesselData(vessel) {
             <span class="detail-value">${vessel.boundingBox ? `TL: ${vessel.boundingBox.topLeft?.latitude?.toFixed(4)}, ${vessel.boundingBox.topLeft?.longitude?.toFixed(4)} / BR: ${vessel.boundingBox.bottomRight?.latitude?.toFixed(4)}, ${vessel.boundingBox.bottomRight?.longitude?.toFixed(4)}` : 'N/A'}</span>
         </div>
     `;
+    
+    return { basicInfo, additionalInfo };
 }
 
+// Load country flag
+async function loadCountryFlag(countryName) {
+    if (!countryName || countryName === 'N/A') return;
+    
+    try {
+        // First, find the country code
+        const codeResponse = await fetch(`/api/find_country_code/${encodeURIComponent(countryName)}`);
+        const codeData = await codeResponse.json();
+        
+        if (!codeData.success) {
+            console.log('Country code not found for:', countryName);
+            return;
+        }
+        
+        // Then get the flag SVG
+        const flagResponse = await fetch(`/api/country_flag/${codeData.country_code}`);
+        const flagData = await flagResponse.json();
+        
+        if (flagData.success && flagData.svg) {
+            const flagContainer = document.getElementById('flag-country-value');
+            if (flagContainer) {
+                // Create a container for flag + name
+                flagContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end;">
+                        <div style="width: 24px; height: 16px; display: flex; align-items: center; border: 1px solid #ddd; border-radius: 2px; overflow: hidden;">
+                            ${flagData.svg}
+                        </div>
+                        <span>${countryName}</span>
+                    </div>
+                `;
+                
+                // Scale the SVG to fit
+                const svgElement = flagContainer.querySelector('svg');
+                if (svgElement) {
+                    svgElement.style.width = '100%';
+                    svgElement.style.height = '100%';
+                    svgElement.style.display = 'block';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading country flag:', error);
+    }
+}
+
+// Toggle additional vessel details
+function toggleAdditionalVesselDetails() {
+    const details = document.getElementById('additional-vessel-details');
+    const button = document.getElementById('vessel-collapse-btn');
+    const icon = button.querySelector('i');
+    
+    if (details.classList.contains('show')) {
+        details.classList.remove('show');
+        icon.className = 'fas fa-chevron-down';
+        button.innerHTML = '<i class="fas fa-chevron-down"></i> Show All Vessel Details';
+    } else {
+        details.classList.add('show');
+        icon.className = 'fas fa-chevron-up';
+        button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide Details';
+    }
+}
 
 async function loadVesselDetails() {
     const mmsi = getMMSIFromURL();
@@ -622,7 +721,14 @@ async function loadVesselDetails() {
         document.getElementById('vessel-name-large').textContent = vesselName;
         document.getElementById('vessel-subtitle').textContent = `MMSI: ${vessel.mmsi || 'N/A'}`;
         
-        document.getElementById('vessel-info').innerHTML = formatVesselData(vessel);
+        const vesselDetails = formatVesselData(vessel);
+        document.getElementById('vessel-info').innerHTML = vesselDetails.basicInfo;
+        document.getElementById('additional-vessel-details').innerHTML = vesselDetails.additionalInfo;
+        
+        // Load country flag if available
+        if (vessel.country) {
+            await loadCountryFlag(vessel.country);
+        }
         
         if (vessel.point && vessel.point.latitude && vessel.point.longitude) {
             initializeMap(vessel.point.latitude, vessel.point.longitude, vesselName, vessel);
