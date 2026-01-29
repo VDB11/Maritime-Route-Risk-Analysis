@@ -486,7 +486,9 @@ function formatVesselData(vessel) {
                 <i class="fas fa-info-circle"></i>
                 <span class="info-tooltip">Intended destination port</span>
             </span>
-            <span class="detail-value">${destination}</span>
+            <span class="detail-value port-link-tooltip" style="color: #4facfe; cursor: pointer; text-decoration: underline;" onclick="goToPortDetails('${vessel.destinationName?.replace(/'/g, "\\'")}')">
+                ${vessel.destinationName?.replace(/_/g, ' ') || 'N/A'}
+                </span>
         </div>
         ${formatRouteData(vessel)}
         <div class="vessel-detail-row">
@@ -642,7 +644,7 @@ async function loadCountryFlag(countryName) {
                 // Create a container for flag + name
                 flagContainer.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end;">
-                        <div style="width: 24px; height: 16px; display: flex; align-items: center; border: 1px solid #ddd; border-radius: 2px; overflow: hidden;">
+                        <div style="width: 24px; height: 16px; display: flex; align-items: center; border: none; border-radius: 2px; overflow: hidden;">
                             ${flagData.svg}
                         </div>
                         <span>${countryName}</span>
@@ -660,6 +662,39 @@ async function loadCountryFlag(countryName) {
         }
     } catch (error) {
         console.error('Error loading country flag:', error);
+    }
+}
+
+// Navigate to port details page
+async function goToPortDetails(destinationName) {
+    if (!destinationName || destinationName === 'N/A') {
+        return;
+    }
+    
+    try {
+        // Call backend to find the actual port code from CSV
+        const response = await fetch('/api/find_port_code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                destination_name: destinationName
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.port_code) {
+            // Open port details with the matched port code
+            window.open(`/port_details?port_code=${encodeURIComponent(data.port_code)}`, '_blank');
+        } else {
+            console.error('Port not found:', data.error);
+            alert('Port details not available for this destination');
+        }
+    } catch (error) {
+        console.error('Error finding port code:', error);
+        alert('Error loading port details');
     }
 }
 
@@ -764,4 +799,14 @@ function showError(message) {
 
 document.addEventListener('DOMContentLoaded', function() {
     loadVesselDetails();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadVesselDetails();
+    
+    // Add click handler for collapse button
+    const collapseBtn = document.getElementById('vessel-collapse-btn');
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', toggleAdditionalVesselDetails);
+    }
 });

@@ -320,6 +320,47 @@
             border-top-color: #4facfe;
         }
 
+        .port-link-tooltip {
+            position: relative;
+        }
+
+        .port-link-tooltip::after {
+            content: 'Click to see port details';
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            margin-bottom: 5px;
+            z-index: 1000;
+        }
+
+        .port-link-tooltip::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            right: 10px;
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            margin-bottom: -5px;
+            z-index: 1000;
+        }
+
+        .port-link-tooltip:hover::after,
+        .port-link-tooltip:hover::before {
+            opacity: 1;
+        }
+
         .detail-value {
             font-size: 14px;
             font-weight: 500;
@@ -461,7 +502,7 @@
                     </div>
                     
                     <div class="collapse-control">
-                        <button class="collapse-btn" onclick="toggleAdditionalVesselDetails()" id="vessel-collapse-btn">
+                        <button class="collapse-btn" id="vessel-collapse-btn">
                             <i class="fas fa-chevron-down"></i> Show All Vessel Details
                         </button>
                     </div>

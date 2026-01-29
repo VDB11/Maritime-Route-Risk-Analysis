@@ -11,7 +11,7 @@ from weather_details import get_weather_forecast
 from piracy_tracker import piracy_monitor
 from check_chokepoint import get_chokepoints_on_route
 from port_details import get_port_details_data
-from vessel_details import enrich_vessel_with_origin
+from vessel_details import enrich_vessel_with_origin, PORT_DATA_DF
 from config import Config
 import threading
 import requests
@@ -1026,6 +1026,56 @@ def get_vessel_details_api(mmsi):
     except Exception as e:
         print(f"Error in vessel details API: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/find_port_code', methods=['POST'])
+def find_port_code():
+    """Find the actual port code from CSV based on destination name"""
+    try:
+        data = request.json
+        destination_name = data.get('destination_name', '')
+        
+        if not destination_name:
+            return jsonify({'success': False, 'error': 'No destination name provided'})
+        
+        # Use the same lookup logic as vessel_details.py
+        from vessel_details import lookup_destination_in_csv, clean_destination_name
+        
+        # Clean the destination name
+        clean_dest = clean_destination_name(destination_name)
+        
+        # Look up in CSV
+        lat, lon = lookup_destination_in_csv(clean_dest)
+        
+        if lat and lon:
+            # Find the actual port code from CSV
+            if not PORT_DATA_DF.empty:
+                dest_clean = clean_dest.lower()
+                dest_nospace = dest_clean.replace(" ", "")
+                
+                for _, row in PORT_DATA_DF.iterrows():
+                    port_name = str(row.get('port_name', '')).strip().lower()
+                    port_name_nospace = port_name.replace(" ", "")
+                    
+                    alt_name = str(row.get('alt_name', '')).strip().lower()
+                    alt_name_nospace = alt_name.replace(" ", "")
+                    
+                    port_code = str(row.get('port_code', '')).strip()
+                    port_code_lower = port_code.lower()
+                    port_code_nospace = port_code_lower.replace(" ", "")
+                    
+                    # Check for matches (same logic as lookup_destination_in_csv)
+                    if (dest_clean == port_name or dest_nospace == port_name_nospace or
+                        dest_clean == alt_name or dest_nospace == alt_name_nospace or
+                        dest_clean == port_code_lower or dest_nospace == port_code_nospace or
+                        dest_clean in port_name or dest_nospace in port_name_nospace or
+                        dest_clean in alt_name or dest_nospace in alt_name_nospace):
+                        
+                        return jsonify({'success': True, 'port_code': port_code})
+        
+        return jsonify({'success': False, 'error': 'Port not found in CSV'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
