@@ -12,6 +12,7 @@ from piracy_tracker import piracy_monitor
 from check_chokepoint import get_chokepoints_on_route
 from port_details import get_port_details_data
 from vessel_details import enrich_vessel_with_origin, PORT_DATA_DF
+from fuzzy_search import FuzzySearch
 from config import Config
 import threading
 import requests
@@ -93,10 +94,10 @@ def get_countries_api(water_body):
     countries = get_countries_by_water_body(port_df, water_body)
     return jsonify(countries)
 
-@app.route('/api/ports/<water_body>/<country_code>')
+""" @app.route('/api/ports/<water_body>/<country_code>')
 def get_ports_api(water_body, country_code):
     ports = get_ports_by_water_body_and_country(port_df, water_body, country_code)
-    return jsonify(ports)
+    return jsonify(ports) """
 
 @app.route('/api/ocean_regions')
 def get_ocean_regions_api():
@@ -152,8 +153,8 @@ def calculate_route():
     
     try:
         # Find port coordinates (FAST - keep sequential)
-        origin_port = port_df[port_df['port_code'] == origin_port_code].iloc[0]
-        dest_port = port_df[port_df['port_code'] == dest_port_code].iloc[0]
+        origin_port = port_df[port_df['port_name'] == origin_port_code].iloc[0]
+        dest_port = port_df[port_df['port_name'] == dest_port_code].iloc[0]
         
         origin_coords = [origin_port['lat'], origin_port['lon']]
         dest_coords = [dest_port['lat'], dest_port['lon']]
@@ -1076,6 +1077,124 @@ def find_port_code():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/load/water-bodies', methods=['GET'])
+def load_water_bodies():
+    """Load all water bodies"""
+    try:
+        water_bodies = [str(wb) for wb in port_df['water_body'].unique() if pd.notna(wb)]
+        water_bodies.sort()
+        return jsonify(water_bodies)
+    except Exception as e:
+        print(f"Error loading water bodies: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/load/countries', methods=['GET'])
+def load_countries():
+    """Load countries for a water body"""
+    water_body = request.args.get('water_body', '').strip()
+    
+    try:
+        if water_body:
+            filtered_df = port_df[port_df['water_body'] == water_body]
+        else:
+            filtered_df = port_df
+        
+        # USE country_code NOT region_name
+        countries = [str(c) for c in filtered_df['country_code'].unique() if pd.notna(c)]
+        countries.sort()
+        return jsonify(countries)
+    except Exception as e:
+        print(f"Error loading countries: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/load/ports', methods=['GET'])
+def load_ports():
+    """Load ports for a country and water body"""
+    country = request.args.get('country', '').strip()
+    water_body = request.args.get('water_body', '').strip()
+    
+    try:
+        filtered_df = port_df.copy()
+        
+        if water_body:
+            filtered_df = filtered_df[filtered_df['water_body'] == water_body]
+        
+        if country:
+            # USE country_code NOT region_name
+            filtered_df = filtered_df[filtered_df['country_code'] == country]
+        
+        # USE port_name NOT port_code
+        ports = [str(p) for p in filtered_df['port_name'].unique() if pd.notna(p)]
+        ports.sort()
+        return jsonify(ports)
+    except Exception as e:
+        print(f"Error loading ports: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/water-bodies', methods=['GET'])
+def search_water_bodies():
+    """Search water bodies with fuzzy matching"""
+    query = request.args.get('q', '').strip()
+    
+    try:
+        water_bodies = [str(wb) for wb in port_df['water_body'].unique() if pd.notna(wb)]
+        results = FuzzySearch.search(query, water_bodies, limit=20, threshold=50)
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error in search_water_bodies: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/countries', methods=['GET'])
+def search_countries():
+    """Search countries with fuzzy matching"""
+    query = request.args.get('q', '').strip()
+    water_body = request.args.get('water_body', '').strip()
+    
+    try:
+        if water_body:
+            filtered_data = port_df[port_df['water_body'] == water_body]
+        else:
+            filtered_data = port_df
+        
+        # USE country_code NOT region_name
+        countries = [str(c) for c in filtered_data['country_code'].unique() if pd.notna(c)]
+        results = FuzzySearch.search(query, countries, limit=20, threshold=50)
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error in search_countries: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/ports', methods=['GET'])
+def search_ports():
+    """Search ports with fuzzy matching"""
+    query = request.args.get('q', '').strip()
+    country = request.args.get('country', '').strip()
+    water_body = request.args.get('water_body', '').strip()
+    
+    try:
+        filtered_data = port_df.copy()
+        
+        if water_body:
+            filtered_data = filtered_data[filtered_data['water_body'] == water_body]
+        
+        if country:
+            # USE country_code NOT region_name
+            filtered_data = filtered_data[filtered_data['country_code'] == country]
+        
+        # USE port_name NOT port_code
+        ports = [str(p) for p in filtered_data['port_name'].unique() if pd.notna(p)]
+        results = FuzzySearch.search(query, ports, limit=20, threshold=50)
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error in search_ports: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)

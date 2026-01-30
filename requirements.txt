@@ -10,3 +10,4 @@ scipy
 gunicorn
 aiohttp
 pillows
+rapidfuzz
