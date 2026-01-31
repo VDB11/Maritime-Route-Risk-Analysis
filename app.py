@@ -1208,7 +1208,7 @@ def search_water_bodies():
     
     try:
         water_bodies = [str(wb) for wb in port_df['water_body'].unique() if pd.notna(wb)]
-        results = FuzzySearch.search(query, water_bodies, limit=20, threshold=50)
+        results = FuzzySearch.search(query, water_bodies, limit=None, threshold=50)
         return jsonify(results)
     except Exception as e:
         print(f"Error in search_water_bodies: {str(e)}")
@@ -1230,7 +1230,7 @@ def search_countries():
         
         # USE country_code NOT region_name
         countries = [str(c) for c in filtered_data['country_code'].unique() if pd.notna(c)]
-        results = FuzzySearch.search(query, countries, limit=20, threshold=50)
+        results = FuzzySearch.search(query, countries, limit=None, threshold=50)
         return jsonify(results)
     except Exception as e:
         print(f"Error in search_countries: {str(e)}")
@@ -1257,7 +1257,7 @@ def search_ports():
         
         # USE port_name NOT port_code
         ports = [str(p) for p in filtered_data['port_name'].unique() if pd.notna(p)]
-        results = FuzzySearch.search(query, ports, limit=20, threshold=50)
+        results = FuzzySearch.search(query, ports, limit=None, threshold=50)
         return jsonify(results)
     except Exception as e:
         print(f"Error in search_ports: {str(e)}")
