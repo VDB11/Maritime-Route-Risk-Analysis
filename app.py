@@ -678,6 +678,75 @@ def get_collisions_for_disaster(disaster_gdacs_id):
         print(f"Error calculating collisions: {e}")
         return jsonify([])
 
+@app.route('/api/disaster_collisions', methods=['POST'])
+def get_disaster_collisions():
+    """Calculate collisions for ships passed in request body"""
+    try:
+        data = request.json
+        ships = data.get('ships', [])
+        
+        if not ships or len(ships) < 2:
+            return jsonify([])
+        
+        from collision_detection import collision_detector, Vessel
+        
+        vessels = []
+        for ship in ships:
+            # Skip stationary ships
+            speed = ship.get('speedKmh')
+            if speed is None or speed == 0:
+                continue
+            
+            if (ship.get('point') and 
+                ship['point'].get('latitude') and 
+                ship['point'].get('longitude') and
+                ship.get('bearingDeg') is not None):
+                
+                vessels.append(Vessel(
+                    mmsi=ship.get('mmsi', 'Unknown'),
+                    name=ship.get('boatName', 'Unknown'),
+                    lat=ship['point']['latitude'],
+                    lon=ship['point']['longitude'],
+                    speed_kmh=speed,
+                    bearing_deg=ship.get('bearingDeg', 0),
+                    length_meters=ship.get('lengthMeters'),
+                    width_meters=ship.get('widthMeters')
+                ))
+        
+        collisions = collision_detector.detect_collisions(vessels)
+        
+        collisions_data = []
+        for collision in collisions:
+            collisions_data.append({
+                'vessel_a': {
+                    'mmsi': collision.vessel_a.mmsi,
+                    'name': collision.vessel_a.name,
+                    'lat': collision.vessel_a.lat,
+                    'lon': collision.vessel_a.lon,
+                    'speed_kmh': collision.vessel_a.speed_kmh,
+                    'bearing_deg': collision.vessel_a.bearing_deg
+                },
+                'vessel_b': {
+                    'mmsi': collision.vessel_b.mmsi,
+                    'name': collision.vessel_b.name,
+                    'lat': collision.vessel_b.lat,
+                    'lon': collision.vessel_b.lon,
+                    'speed_kmh': collision.vessel_b.speed_kmh,
+                    'bearing_deg': collision.vessel_b.bearing_deg
+                },
+                'cpa_distance_m': round(collision.cpa_km * 1000, 0) if hasattr(collision, 'cpa_km') else None,
+                'tcpa_minutes': round(collision.tcpa_minutes, 1) if hasattr(collision, 'tcpa_minutes') else None,
+                'risk_level': collision.risk_level
+            })
+        
+        return jsonify(collisions_data)
+        
+    except Exception as e:
+        print(f"Error calculating disaster collisions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
+
 @app.route('/api/chokepoint_collisions', methods=['POST'])
 def get_chokepoint_collisions():
     try:

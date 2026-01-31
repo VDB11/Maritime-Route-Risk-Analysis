@@ -1,412 +1,8 @@
-// Initialize searchable dropdowns when document is ready
-$(document).ready(function() {
-    initializeSearchableDropdowns();
-});
-
-function initializeSearchableDropdowns() {
-    // Initialize origin dropdowns
-    searchableDropdown.makeSearchable('#origin-water-body', {
-        loadUrl: '/api/load/water-bodies',
-        searchUrl: '/api/search/water-bodies',
-        placeholder: 'Select or search water body...'
-    });
-
-    searchableDropdown.makeSearchable('#origin-country', {
-        loadUrl: '/api/load/countries',
-        searchUrl: '/api/search/countries',
-        placeholder: 'Select or search country...',
-        additionalParams: {}
-    });
-
-    searchableDropdown.makeSearchable('#origin-port', {
-        loadUrl: '/api/load/ports',
-        searchUrl: '/api/search/ports',
-        placeholder: 'Select or search port...',
-        additionalParams: {}
-    });
-
-    // Initialize destination dropdowns
-    searchableDropdown.makeSearchable('#dest-water-body', {
-        loadUrl: '/api/load/water-bodies',
-        searchUrl: '/api/search/water-bodies',
-        placeholder: 'Select or search water body...'
-    });
-
-    searchableDropdown.makeSearchable('#dest-country', {
-        loadUrl: '/api/load/countries',
-        searchUrl: '/api/search/countries',
-        placeholder: 'Select or search country...',
-        additionalParams: {}
-    });
-
-    searchableDropdown.makeSearchable('#dest-port', {
-        loadUrl: '/api/load/ports',
-        searchUrl: '/api/search/ports',
-        placeholder: 'Select or search port...',
-        additionalParams: {}
-    });
-
-    // Set up cascade behavior
-    setupCascadingDropdowns();
-}
-
-function setupCascadingDropdowns() {
-    // Origin cascade
-    $('#origin-water-body').on('change', function() {
-        const waterBody = $(this).val();
-        
-        // Enable country dropdown
-        searchableDropdown.setEnabled('#origin-country', !!waterBody);
-        
-        // Reload country dropdown with new params
-        if (waterBody) {
-            searchableDropdown.updateSearchParams('#origin-country', { water_body: waterBody });
-        }
-        
-        // Clear dependent dropdowns
-        searchableDropdown.clear('#origin-country');
-        searchableDropdown.clear('#origin-port');
-        searchableDropdown.setEnabled('#origin-port', false);
-        
-        updateCalculateButton();
-    });
-
-    $('#origin-country').on('change', function() {
-        const country = $(this).val();
-        const waterBody = $('#origin-water-body').val();
-        
-        // Enable port dropdown
-        searchableDropdown.setEnabled('#origin-port', !!country);
-        
-        // Reload port dropdown with new params
-        if (country && waterBody) {
-            searchableDropdown.updateSearchParams('#origin-port', { 
-                country: country, 
-                water_body: waterBody 
-            });
-        }
-        
-        // Clear port
-        searchableDropdown.clear('#origin-port');
-        
-        updateCalculateButton();
-    });
-
-    $('#origin-port').on('change', function() {
-        updateCalculateButton();
-    });
-
-    // Destination cascade
-    $('#dest-water-body').on('change', function() {
-        const waterBody = $(this).val();
-        
-        searchableDropdown.setEnabled('#dest-country', !!waterBody);
-        
-        if (waterBody) {
-            searchableDropdown.updateSearchParams('#dest-country', { water_body: waterBody });
-        }
-        
-        searchableDropdown.clear('#dest-country');
-        searchableDropdown.clear('#dest-port');
-        searchableDropdown.setEnabled('#dest-port', false);
-        
-        updateCalculateButton();
-    });
-
-    $('#dest-country').on('change', function() {
-        const country = $(this).val();
-        const waterBody = $('#dest-water-body').val();
-        
-        searchableDropdown.setEnabled('#dest-port', !!country);
-        
-        if (country && waterBody) {
-            searchableDropdown.updateSearchParams('#dest-port', { 
-                country: country, 
-                water_body: waterBody 
-            });
-        }
-        
-        searchableDropdown.clear('#dest-port');
-        
-        updateCalculateButton();
-    });
-
-    $('#dest-port').on('change', function() {
-        updateCalculateButton();
-    });
-}
-
-function updateCalculateButton() {
-    const originPort = $('#origin-port').val();
-    const destPort = $('#dest-port').val();
-    
-    $('#calculate-route').prop('disabled', !(originPort && destPort));
-}
-
-// Initialize the map
-const map = L.map('map', {
-    center: [20, 0],
-    zoom: 2,
-    minZoom: 2,
-    maxZoom: 18,
-    worldCopyJump: true
-});
-
-// Add base layers
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
-    maxZoom: 19
-}).addTo(map);
-
-// Add multiple backup tile providers
-const tileLayers = {
-    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-    }),
-    "OpenSeaMap": L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-        attribution: 'Map data: &copy; OpenSeaMap contributors',
-        maxZoom: 18
-    }),
-    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri, Maxar, Earthstar Geographics',
-        maxZoom: 19
-    }),
-    "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
-        maxZoom: 20
-    })
-};
-
-// First, add the layer control (will appear on top)
-const layerControl = L.control.layers(tileLayers, null, {
-    position: 'topright'
-}).addTo(map);
-
-// Add default tile layer
-tileLayers["OpenStreetMap"].addTo(map);
-
-// Then add metadata icon (will appear below layer control)
-const metadataControl = L.control({position: 'topright'});
-
-metadataControl.onAdd = function(map) {
-    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-    div.innerHTML = `
-        <a href="/demo_map" target="_blank" 
-           style="display: flex; align-items: center; justify-content: center;
-                  width: 36px; height: 36px; 
-                  background: white; border-radius: 6px;
-                  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-                  transition: all 0.2s ease;
-                  color: #0066cc; text-decoration: none;"
-           title="View Demo Map with Explanations"
-           onmouseover="this.style.transform='scale(1.1)'; this.style.background='#f8f9fa';"
-           onmouseout="this.style.transform='scale(1)'; this.style.background='white';">
-            <i class="fas fa-info-circle" style="font-size: 20px;"></i>
-        </a>
-    `;
-    return div;
-};
-
-// Add metadata control to map
-metadataControl.addTo(map);
-
-// Minimal spacing CSS
-const style = document.createElement('style');
-style.textContent = `
-    .leaflet-control-custom {
-        margin-top: 5px !important; /* Just enough to clear the layer control button */
-    }
-    .leaflet-control-custom a:hover {
-        box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-    }
-`;
-document.head.appendChild(style);
-
-// Set view with bounds to prevent extreme zoom
-map.options.minZoom = 2;
-map.options.maxZoom = 18;
-
-// Global variables
-let routeLayer = null;
-let disasterMarkers = [];
-let portMarkers = [];
-let shipMarkers = [];
-let collisionLines = [];
-window.currentRouteCollisions = [];
-let chokepointMarkers = [];
-let chokepointShipMarkers = [];
-window.chokepointCollisions = [];
-
-// Alert color mapping
-const alertColorMap = {
-    'Red': '#ff4444',
-    'Orange': '#ff8800', 
-    'Green': '#44ff44',
-    'Unknown': '#888888'
-};
-
-// Layer visibility management
-let layerVisibility = {
-    disasters: true,
-    congestion: true,
-    protected: true
-    // vessels: true REMOVED
-};
-
-/*
-// OLD DROPDOWN FEATURE START
-//==================================
-// Load water bodies on page load
-fetch('/api/water_bodies')
-    .then(response => response.json())
-    .then(waterBodies => {
-        const originSelect = document.getElementById('origin-water-body');
-        const destSelect = document.getElementById('dest-water-body');
-        
-        waterBodies.forEach(waterBody => {
-            const option1 = document.createElement('option');
-            option1.value = waterBody;
-            option1.textContent = waterBody;
-            originSelect.appendChild(option1);
-            
-            const option2 = document.createElement('option');
-            option2.value = waterBody;
-            option2.textContent = waterBody;
-            destSelect.appendChild(option2);
-        });
-    })
-    .catch(error => {
-        console.error('Error loading water bodies:', error);
-    });
-
-// Event listeners for water body selection
-document.getElementById('origin-water-body').addEventListener('change', function() {
-    const waterBody = this.value;
-    const countrySelect = document.getElementById('origin-country');
-    
-    countrySelect.disabled = !waterBody;
-    countrySelect.innerHTML = '<option value="">Select Country</option>';
-    document.getElementById('origin-port').innerHTML = '<option value="">Select Port</option>';
-    document.getElementById('origin-port').disabled = true;
-    
-    if (waterBody) {
-        fetch(`/api/countries/${encodeURIComponent(waterBody)}`)
-            .then(response => response.json())
-            .then(countries => {
-                countries.forEach(country => {
-                    const option = document.createElement('option');
-                    option.value = country;
-                    option.textContent = country;
-                    countrySelect.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading countries:', error);
-            });
-    }
-    
-    checkCalculateButton();
-});
-
-document.getElementById('dest-water-body').addEventListener('change', function() {
-    const waterBody = this.value;
-    const countrySelect = document.getElementById('dest-country');
-    
-    countrySelect.disabled = !waterBody;
-    countrySelect.innerHTML = '<option value="">Select Country</option>';
-    document.getElementById('dest-port').innerHTML = '<option value="">Select Port</option>';
-    document.getElementById('dest-port').disabled = true;
-    
-    if (waterBody) {
-        fetch(`/api/countries/${encodeURIComponent(waterBody)}`)
-            .then(response => response.json())
-            .then(countries => {
-                countries.forEach(country => {
-                    const option = document.createElement('option');
-                    option.value = country;
-                    option.textContent = country;
-                    countrySelect.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading countries:', error);
-            });
-    }
-    
-    checkCalculateButton();
-});
-
-// Event listeners for country selection
-document.getElementById('origin-country').addEventListener('change', function() {
-    const waterBody = document.getElementById('origin-water-body').value;
-    const country = this.value;
-    const portSelect = document.getElementById('origin-port');
-    
-    portSelect.disabled = !country;
-    portSelect.innerHTML = '<option value="">Select Port</option>';
-    
-    if (waterBody && country) {
-        fetch(`/api/ports/${encodeURIComponent(waterBody)}/${encodeURIComponent(country)}`)
-            .then(response => response.json())
-            .then(ports => {
-                ports.forEach(port => {
-                    const option = document.createElement('option');
-                    option.value = port.port_code;
-                    option.textContent = port.port_name;
-                    portSelect.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading ports:', error);
-            });
-    }
-    
-    checkCalculateButton();
-});
-
-document.getElementById('dest-country').addEventListener('change', function() {
-    const waterBody = document.getElementById('dest-water-body').value;
-    const country = this.value;
-    const portSelect = document.getElementById('dest-port');
-    
-    portSelect.disabled = !country;
-    portSelect.innerHTML = '<option value="">Select Port</option>';
-    
-    if (waterBody && country) {
-        fetch(`/api/ports/${encodeURIComponent(waterBody)}/${encodeURIComponent(country)}`)
-            .then(response => response.json())
-            .then(ports => {
-                ports.forEach(port => {
-                    const option = document.createElement('option');
-                    option.value = port.port_code;
-                    option.textContent = port.port_name;
-                    portSelect.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading ports:', error);
-            });
-    }
-    
-    checkCalculateButton();
-});
-
-// Event listener for port selection
-document.getElementById('origin-port').addEventListener('change', checkCalculateButton);
-document.getElementById('dest-port').addEventListener('change', checkCalculateButton);
-
-// Check if calculate button should be enabled
-function checkCalculateButton() {
-    const originPort = document.getElementById('origin-port').value;
-    const destPort = document.getElementById('dest-port').value;
-    const calculateButton = document.getElementById('calculate-route');
-    
-    calculateButton.disabled = !(originPort && destPort);
-}
-// OLD DROPDOWN FEATURE END
-//==================================
-*/    
+/**
+ * Map Features Module
+ * Handles markers, layers, popups, and visual elements on the map
+ * Depends on: map-initialization.js, Leaflet.js
+ */
 
 // Helper function to darken a color for gradient
 function darkenColor(color) {
@@ -416,6 +12,7 @@ function darkenColor(color) {
     return color; // Fallback
 }
 
+// Function to clear all map layers
 function clearMapLayers() {
     if (routeLayer) {
         map.removeLayer(routeLayer);
@@ -577,47 +174,75 @@ function createShipMarker(ship) {
                 <i class="fas fa-fingerprint"></i>
             </div>
             <div>
-                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
-                <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
+                <div style="font-size: 11px; color: #666;">MMSI</div>
+                <div style="font-size: 13px; font-weight: 500;">${ship.mmsi || 'N/A'}</div>
             </div>
         </div>
         
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+            <div style="color: #4CAF50; font-size: 12px; width: 20px;">
+                <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #666;">Speed</div>
+                <div style="font-size: 13px; font-weight: 500;">${formattedSpeed}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #FF9800; font-size: 12px; width: 20px;">
+                <i class="fas fa-compass"></i>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #666;">Bearing</div>
+                <div style="font-size: 13px; font-weight: 500;">${formattedBearing}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #9C27B0; font-size: 12px; width: 20px;">
+                <i class="fas fa-anchor"></i>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #666;">Draught</div>
+                <div style="font-size: 13px; font-weight: 500;">${formattedDraught}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #00BCD4; font-size: 12px; width: 20px;">
+                <i class="fas fa-ruler-combined"></i>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #666;">Dimensions (L×W)</div>
+                <div style="font-size: 13px; font-weight: 500;">${formattedDimensions}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #F44336; font-size: 12px; width: 20px;">
                 <i class="fas fa-map-marker-alt"></i>
             </div>
             <div>
-                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
-                <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                <i class="fas fa-gauge-high"></i>
-            </div>
-            <div>
-                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Speed</div>
-                <div style="color: #2d3748; font-size: 13px;">${formattedSpeed}</div>
+                <div style="font-size: 11px; color: #666;">Destination</div>
+                <div style="font-size: 13px; font-weight: 500;">${cleanDestination}</div>
             </div>
         </div>
         
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-            <div style="color: #2196F3; font-size: 12px; width: 20px;">
-                <i class="fas fa-ruler-combined"></i>
+            <div style="color: #607D8B; font-size: 12px; width: 20px;">
+                <i class="fas fa-map-pin"></i>
             </div>
             <div>
-                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
-                <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
+                <div style="font-size: 11px; color: #666;">Position</div>
+                <div style="font-size: 13px; font-weight: 500;">${formattedPosition}</div>
             </div>
         </div>
     </div>
-`;
-
-    const marker = L.marker([ship.point.latitude, ship.point.longitude], {icon: shipIcon})
+    `;
+    
+    return L.marker([ship.point.latitude, ship.point.longitude], {icon: shipIcon})
         .bindPopup(popupHtml);
-
-    return marker;
 }
 
 // Function to create disaster markers with proper styling
@@ -944,6 +569,7 @@ function addEcaMpaAreas(ecaMpaData) {
     window.ecaMpaLayer = ecaMpaLayer;
 }
 
+// Function to add collision lines
 function addCollisionLines(collisionsData) {
     console.log("🎨 DRAWING COLLISION LINES:", collisionsData);
     
@@ -992,146 +618,74 @@ function addCollisionLines(collisionsData) {
                             <div style="color: #666; font-size: 11px;">MMSI: ${vesselB.mmsi}</div>
                         </div>
                     </div>
-                </div>
-                
-                <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">CPA Distance</div>
-                            <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.cpa_km.toFixed(3)} km</div>
-                            <div style="color: #666; font-size: 11px;">${(collision.cpa_km / 1.852).toFixed(3)} NM</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; color: #4a5568; font-size: 12px;">TCPA</div>
-                            <div style="color: #2d3748; font-size: 14px; font-weight: 600;">${collision.tcpa_minutes.toFixed(1)} min</div>
+                    
+                    <div style="background: #fff3cd; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                        <div style="font-weight: 600; color: #856404; font-size: 12px; margin-bottom: 4px;">Risk Assessment</div>
+                        <div style="color: #856404; font-size: 13px;">
+                            <strong>CPA Distance:</strong> ${collision.cpa_distance_m ? collision.cpa_distance_m.toFixed(0) : 'N/A'} meters<br>
+                            <strong>Time to CPA:</strong> ${collision.tcpa_minutes ? collision.tcpa_minutes.toFixed(1) : 'N/A'} minutes<br>
+                            <strong>Risk Level:</strong> <span style="color: #ff0000; font-weight: 700;">${collision.risk_level}</span>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-
+        
         collisionLine.bindPopup(popupContent);
-        
-        if (layerVisibility.congestion) {
-            collisionLine.addTo(map);
-        }
-        
+        collisionLine.addTo(map);
         collisionLines.push(collisionLine);
     });
-    
-    console.log(`✅ Added ${criticalCollisions.length} CRITICAL collision lines (Total lines now: ${collisionLines.length})`);
 }
 
-// Debug function to check collision data
-function debugCollisionData(shipsData) {
-    console.log("🔍 === COLLISION DEBUG START ===");
-    console.log("📦 Ships data structure:", shipsData);
+// Function to check all disaster collisions
+function checkAllDisasterCollisions(shipsData) {
+    if (!shipsData) return;
     
-    if (!shipsData) {
-        console.log("❌ No ships data available");
-        return;
-    }
+    console.log("🚨 === STARTING COLLISION DETECTION ===");
     
-    const disasterCount = Object.keys(shipsData).length;
-    console.log(`📊 Found ${disasterCount} disaster areas with ships`);
+    let totalDisasters = 0;
+    let processedDisasters = 0;
+    const allCollisions = [];
     
+    // Count total disasters
     Object.keys(shipsData).forEach(disasterId => {
-        console.log(`\n🌪️ Disaster: ${disasterId}`);
-        const disasterData = shipsData[disasterId];
+        const disaster = shipsData[disasterId];
+        if (disaster && disaster.ships && disaster.ships.length > 0) {
+            totalDisasters++;
+        }
+    });
+    
+    console.log(`📊 Total disaster areas to check: ${totalDisasters}`);
+    
+    // Check collisions for each disaster area
+    Object.keys(shipsData).forEach(disasterId => {
+        const disaster = shipsData[disasterId];
         
-        if (!disasterData) {
-            console.log("❌ No disaster data");
+        if (!disaster || !disaster.ships || disaster.ships.length === 0) {
             return;
         }
         
-        console.log("📋 Disaster info:", disasterData.disaster_info);
+        console.log(`🔍 Checking collisions for disaster ${disasterId} (${disaster.ships.length} ships)`);
         
-        if (disasterData.ships && disasterData.ships.length > 0) {
-            console.log(`🚢 Found ${disasterData.ships.length} ships in this disaster area`);
-            
-            disasterData.ships.forEach((ship, index) => {
-                const hasCoords = ship.point && ship.point.latitude && ship.point.longitude;
-                const hasSpeed = ship.speedKmh !== undefined && ship.speedKmh !== null;
-                const hasBearing = ship.bearingDeg !== undefined && ship.bearingDeg !== null;
-                
-                console.log(`   Ship ${index}:`, {
-                    name: ship.boatName || 'Unknown',
-                    mmsi: ship.mmsi || 'Unknown',
-                    lat: ship.point?.latitude,
-                    lon: ship.point?.longitude,
-                    speed: ship.speedKmh,
-                    bearing: ship.bearingDeg,
-                    hasValidData: hasCoords && hasSpeed && hasBearing,
-                    vesselType: ship.vesselType
-                });
-            });
-        } else {
-            console.log("❌ No ships found in this disaster area");
-        }
-    });
-    
-    console.log("🔍 === COLLISION DEBUG END ===\n");
-}
-
-function checkAllDisasterCollisions(shipsData) {
-    console.log("🚨 === COLLISION DETECTION STARTED ===");
-    
-    if (!shipsData) {
-        console.log("❌ No ships data available for collision detection");
-        return;
-    }
-    
-    // Debug the ships data first
-    debugCollisionData(shipsData);
-    
-    const disasterIds = Object.keys(shipsData);
-    console.log(`🔍 Checking collisions for ${disasterIds.length} disaster areas:`, disasterIds);
-    
-    // Collect all collisions from all disaster areas
-    let allCollisions = [];
-    let processedDisasters = 0;
-    const totalDisasters = disasterIds.length;
-    
-    if (totalDisasters === 0) {
-        console.log("❌ No disaster areas with ships to check");
-        return;
-    }
-    
-    disasterIds.forEach(disasterId => {
-        console.log(`\n📡 Fetching collisions for disaster: ${disasterId}`);
-        
-        fetch(`/api/collisions/${disasterId}`)
-            .then(response => {
-                console.log(`📊 API Response status for ${disasterId}: ${response.status}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+        fetch('/api/disaster_collisions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ships: disaster.ships })
+        })
+            .then(res => res.json())
             .then(collisions => {
-                console.log(`✅ Collisions API response for ${disasterId}:`, collisions);
-                
-                if (collisions && Array.isArray(collisions) && collisions.length > 0) {
-                    console.log(`🎯 Found ${collisions.length} collisions in ${disasterId}`);
-                    allCollisions = allCollisions.concat(collisions);
-                } else {
-                    console.log(`➖ No collisions found for ${disasterId}`);
-                }
-                
                 processedDisasters++;
                 console.log(`📈 Progress: ${processedDisasters}/${totalDisasters} disaster areas processed`);
                 
-                // When all disasters are processed, draw collisions
-                if (processedDisasters === totalDisasters) {
-                    console.log(`\n🎉 ALL DISASTERS PROCESSED!`);
-                    console.log(`📊 Total collisions found: ${allCollisions.length}`);
-                    console.log("📋 Collisions data:", allCollisions);
+                if (collisions && collisions.length > 0) {
+                    console.log(`⚠️ Found ${collisions.length} collisions in disaster ${disasterId}`);
+                    allCollisions.push(...collisions);
                     
-                    if (allCollisions.length > 0) {
-                        console.log("🎨 Drawing collision lines...");
+                    // Only add collision lines once when all disasters processed
+                    if (processedDisasters === totalDisasters) {
                         addCollisionLines(allCollisions);
                         
-                        // Add collision alert as dropdown to sidebar
+                        // Add collision alert dropdown to sidebar
                         const disasterAlerts = document.getElementById('disaster-alerts');
                         const alert = document.createElement('div');
                         alert.className = 'alert-box';
@@ -1143,7 +697,7 @@ function checkAllDisasterCollisions(shipsData) {
 
                         // Alert header (clickable)
                         const alertHeader = document.createElement('div');
-                        alertHeader.onclick = function() { toggleCollisionDropdown(); };
+                        alertHeader.onclick = toggleCollisionDropdown;
                         alertHeader.style.cssText = `
                             display: flex;
                             justify-content: space-between;
@@ -1191,27 +745,26 @@ function checkAllDisasterCollisions(shipsData) {
                                             border-radius: 6px; backdrop-filter: blur(10px);">
                                             <strong style="color: #ffeb3b;">Vessel A:</strong> ${vesselA.name}
                                         </div>
-                                        <div style="margin-bottom: 8px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                        <div style="margin-bottom: 10px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
                                             border-radius: 6px; backdrop-filter: blur(10px);">
                                             <strong style="color: #ffeb3b;">Vessel B:</strong> ${vesselB.name}
                                         </div>
                                         
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; 
-                                            padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
-                                            <div>
-                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
-                                                    CPA DISTANCE
-                                                </div>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                                            <div style="background: rgba(255, 255, 255, 0.2); padding: 8px; border-radius: 6px; 
+                                                text-align: center; backdrop-filter: blur(10px);">
+                                                <div style="font-size: 11px; color: #ffeb3b; margin-bottom: 2px; text-transform: uppercase; 
+                                                    letter-spacing: 0.5px;">CPA Distance</div>
                                                 <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
-                                                    ${collision.cpa_km.toFixed(3)} km
+                                                    ${collision.cpa_distance_m ? collision.cpa_distance_m.toFixed(0) : 'N/A'}m
                                                 </div>
                                             </div>
-                                            <div>
-                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
-                                                    TIME TO CPA
-                                                </div>
+                                            <div style="background: rgba(255, 255, 255, 0.2); padding: 8px; border-radius: 6px; 
+                                                text-align: center; backdrop-filter: blur(10px);">
+                                                <div style="font-size: 11px; color: #ffeb3b; margin-bottom: 2px; text-transform: uppercase; 
+                                                    letter-spacing: 0.5px;">Time to CPA</div>
                                                 <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
-                                                    ${collision.tcpa_minutes.toFixed(1)} min
+                                                   ${collision.tcpa_minutes ? collision.tcpa_minutes.toFixed(1) : 'N/A'} min
                                                 </div>
                                             </div>
                                         </div>
@@ -1362,6 +915,7 @@ function addCongestedPortShips(originData, destData) {
     }
 }
 
+// Function to show chokepoints
 function showChokepoints() {
     // Clear old chokepoint markers and circles ONLY
     chokepointMarkers.forEach(m => map.removeLayer(m));
@@ -1550,27 +1104,26 @@ function showChokepoints() {
                                             border-radius: 6px; backdrop-filter: blur(10px);">
                                             <strong style="color: #ffeb3b;">Vessel A:</strong> ${vesselA.name}
                                         </div>
-                                        <div style="margin-bottom: 8px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
+                                        <div style="margin-bottom: 10px; padding: 8px; background: rgba(255, 255, 255, 0.15); 
                                             border-radius: 6px; backdrop-filter: blur(10px);">
                                             <strong style="color: #ffeb3b;">Vessel B:</strong> ${vesselB.name}
                                         </div>
                                         
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; 
-                                            padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
-                                            <div>
-                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
-                                                    CPA DISTANCE
-                                                </div>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                                            <div style="background: rgba(255, 255, 255, 0.2); padding: 8px; border-radius: 6px; 
+                                                text-align: center; backdrop-filter: blur(10px);">
+                                                <div style="font-size: 11px; color: #ffeb3b; margin-bottom: 2px; text-transform: uppercase; 
+                                                    letter-spacing: 0.5px;">CPA Distance</div>
                                                 <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
-                                                    ${collision.cpa_km.toFixed(3)} km
+                                                    ${collision.cpa_distance_m ? collision.cpa_distance_m.toFixed(0) : 'N/A'}m
                                                 </div>
                                             </div>
-                                            <div>
-                                                <div style="font-size: 11px; color: #ffeb3b; font-weight: 600; margin-bottom: 4px;">
-                                                    TIME TO CPA
-                                                </div>
+                                            <div style="background: rgba(255, 255, 255, 0.2); padding: 8px; border-radius: 6px; 
+                                                text-align: center; backdrop-filter: blur(10px);">
+                                                <div style="font-size: 11px; color: #ffeb3b; margin-bottom: 2px; text-transform: uppercase; 
+                                                    letter-spacing: 0.5px;">Time to CPA</div>
                                                 <div style="font-weight: 700; font-size: 16px; color: #ffffff;">
-                                                    ${collision.tcpa_minutes.toFixed(1)} min
+                                                    ${collision.tcpa_minutes ? collision.tcpa_minutes.toFixed(1) : 'N/A'} min
                                                 </div>
                                             </div>
                                         </div>
@@ -1590,174 +1143,26 @@ function showChokepoints() {
                         alert.appendChild(dropdownContent);
                         disasterAlerts.appendChild(alert);
                     }
-                })
-                .catch(err => console.error(`Error detecting collisions for ${cp.name}:`, err));
-            } else {
-                console.log(`No ships found for ${cp.name}`);
+                });
             }
-
-            chokepointMarkers.push(marker);
         });
-        
-        // Restore button
+
+        // Reset button
         btn.innerHTML = originalText;
         btn.disabled = false;
     })
     .catch(error => {
         console.error('Error fetching chokepoint ships:', error);
-        // Restore button
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
 }
 
-// Global weather loading function
-function loadWeather(button, lat, lon) {
-    const container = button.closest('[data-weather-container]');
-    const weatherContent = container.querySelector('.weather-content');
-    
-    if (!weatherContent) return;
-    
-    if (weatherContent.style.display === 'none' || weatherContent.style.display === '') {
-        weatherContent.innerHTML = '<div style="text-align: center; padding: 10px; color: #666;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-        weatherContent.style.display = 'block';
-        
-        fetch(`/api/weather?lat=${lat}&lon=${lon}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">${data.error}</div>`;
-                    return;
-                }
-                
-                let html = `
-                    <div style="margin-bottom: 10px; padding: 8px; background: #f0f7ff; border-radius: 6px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <div>
-                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Current Temp</div>
-                                <div style="color: #2d3748; font-size: 13px;">${data.current.temperature_2m}°C</div>
-                            </div>
-                            <div>
-                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Wind Speed</div>
-                                <div style="color: #2d3748; font-size: 13px;">${data.current.wind_speed_10m} km/h</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                if (data.forecast && data.forecast.length > 0) {
-                    html += '<div style="font-weight: 600; color: #4a5568; font-size: 12px; margin-bottom: 8px;">Next 5 Days:</div>';
-                    data.forecast.forEach(day => {
-                        html += `
-                            <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
-                                <div style="font-weight: 500; color: #2d3748; font-size: 12px;">${day.day_name}</div>
-                                <div>
-                                    <div style="font-size: 11px; color: #666;">Temp</div>
-                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_temp}°C</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 11px; color: #666;">Wind</div>
-                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_wind} km/h</div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                
-                weatherContent.innerHTML = html;
-            })
-            .catch(error => {
-                weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">Failed to load weather</div>`;
-            });
-    } else {
-        weatherContent.style.display = 'none';
-    }
-}
-
 function createWeatherSection(lat, lon) {
-    const container = document.createElement('div');
-    container.innerHTML = `
-        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0;" data-weather-container>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="font-weight: 600; color: #4a5568; font-size: 14px;">
-                    <i class="fas fa-cloud-sun" style="margin-right: 6px; color: #4facfe;"></i>
-                    Weather Forecast
-                </div>
-                <button class="show-weather-btn" onclick="event.preventDefault(); event.stopPropagation(); loadWeather(this, ${lat}, ${lon})"
-                        style="background: #4facfe; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;"
-                        data-lat="${lat}" data-lon="${lon}">
-                    Load Forecast
-                </button>
-            </div>
-            <div class="weather-content" style="display: none;"></div>
-        </div>
-    `;
-    
-    // Add click event with proper event handling for Leaflet popups
-        const btn = container.querySelector('.show-weather-btn');
-        const weatherContent = container.querySelector('.weather-content');
-
-btn.addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (weatherContent.style.display === 'none' || weatherContent.style.display === '') {
-        weatherContent.innerHTML = '<div style="text-align: center; padding: 10px; color: #666;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-        weatherContent.style.display = 'block';
-        
-        fetch(`/api/weather?lat=${lat}&lon=${lon}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">${data.error}</div>`;
-                    return;
-                }
-                
-                let html = `
-                    <div style="margin-bottom: 10px; padding: 8px; background: #f0f7ff; border-radius: 6px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <div>
-                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Current Temp</div>
-                                <div style="color: #2d3748; font-size: 13px;">${data.current.temperature_2m}°C</div>
-                            </div>
-                            <div>
-                                <div style="font-weight: 600; color: #4a5568; font-size: 11px;">Wind Speed</div>
-                                <div style="color: #2d3748; font-size: 13px;">${data.current.wind_speed_10m} km/h</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                if (data.forecast && data.forecast.length > 0) {
-                    html += '<div style="font-weight: 600; color: #4a5568; font-size: 12px; margin-bottom: 8px;">Next 5 Days:</div>';
-                    data.forecast.forEach(day => {
-                        html += `
-                            <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
-                                <div style="font-weight: 500; color: #2d3748; font-size: 12px;">${day.day_name}</div>
-                                <div>
-                                    <div style="font-size: 11px; color: #666;">Temp</div>
-                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_temp}°C</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 11px; color: #666;">Wind</div>
-                                    <div style="font-size: 12px; color: #2d3748;">${day.avg_wind} km/h</div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                
-                weatherContent.innerHTML = html;
-            })
-            .catch(error => {
-                weatherContent.innerHTML = `<div style="color: #f44336; padding: 10px; text-align: center;">Failed to load weather</div>`;
-            });
-    } else {
-        weatherContent.style.display = 'none';
-    }
-});
-
-return container;
+    // Return a harmless empty node so callers using .outerHTML don’t crash
+    const empty = document.createElement('div');
+    empty.style.display = 'none';
+    return empty;
 }
 
 // Function to create piracy incident marker
@@ -2029,6 +1434,7 @@ function toggleChokepointCollisionDropdown(chokepointName) {
     }
 }
 
+// Function to open vessel details
 function openVesselDetails(shipData) {
     const mmsi = shipData.mmsi;
     // Store ship data in sessionStorage
@@ -2076,313 +1482,45 @@ document.addEventListener('DOMContentLoaded', function() {
     const legend = document.querySelector('.legend');
     const toggleButton = document.getElementById('legend-toggle-btn');
     
-    // Ensure legend is initially visible
-    if (!legend.style.display) {
-        legend.style.display = 'block';
-    }
-    
-    // Set initial button state
-    if (legend.style.display === 'none') {
-        toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
-        toggleButton.title = 'Show Legend';
-    } else {
-        toggleButton.innerHTML = '<i class="fas fa-layer-group"></i>';
-        toggleButton.title = 'Hide Legend';
-    }
-    
-    // Add click event listener to the button
-    toggleButton.addEventListener('click', toggleLegend);
-    
-    // Add event listeners for toggle controls (REMOVED vessel tracking)
-    document.getElementById('toggle-disasters').addEventListener('change', function() {
-        toggleLayerVisibility('disasters', this.checked);
-    });
-
-    document.getElementById('toggle-congestion').addEventListener('change', function() {
-        toggleLayerVisibility('congestion', this.checked);
-    });
-
-    document.getElementById('toggle-protected').addEventListener('change', function() {
-        toggleLayerVisibility('protected', this.checked);
-    });
-
-});
-
-// Calculate route button click
-document.getElementById('calculate-route').addEventListener('click', function() {
-    const originPort = document.getElementById('origin-port').value;
-    const destPort = document.getElementById('dest-port').value;
-    
-    // Show loading
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('route-info').style.display = 'none';
-    
-    // Clear previous route and markers (but NOT vessel tracking - removed)
-    clearMapLayers();
-    
-    // Calculate route
-    fetch('/api/route', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            origin_port: originPort,
-            dest_port: destPort
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Hide loading
-        document.getElementById('loading').style.display = 'none';
-        
-        if (data.error) {
-            alert('Error: ' + data.error);
-            return;
+    if (legend && toggleButton) {
+        // Ensure legend is initially visible
+        if (!legend.style.display) {
+            legend.style.display = 'block';
         }
         
-        if (data.enable_collision_check && data.ships) {
-            checkAllDisasterCollisions(data.ships);
-        }
-        
-        // Display route information
-        document.getElementById('route-length').textContent = 
-            `Route Length: ${data.route.length.toFixed(1)} ${data.route.units}`;
-        
-        // Display disaster alerts
-        const disasterAlerts = document.getElementById('disaster-alerts');
-        disasterAlerts.innerHTML = '';
-        
-        // Check origin disasters
-        if (data.origin.disasters && data.origin.disasters.length > 0) {
-            const alert = document.createElement('div');
-            alert.className = 'alert-box';
-            alert.innerHTML = `<strong>Warning!</strong> ${data.origin.disasters.length} disaster(s) near origin port`;
-            disasterAlerts.appendChild(alert);
-        }
-        
-        // Check destination disasters
-        if (data.destination.disasters && data.destination.disasters.length > 0) {
-            const alert = document.createElement('div');
-            alert.className = 'alert-box';
-            alert.innerHTML = `<strong>Warning!</strong> ${data.destination.disasters.length} disaster(s) near destination port`;
-            disasterAlerts.appendChild(alert);
-        }
-        
-        // Check route disasters
-        if (data.route.disasters && data.route.disasters.length > 0) {
-            const alert = document.createElement('div');
-            alert.className = 'alert-box';
-            alert.innerHTML = `<strong>Warning!</strong> ${data.route.disasters.length} disaster(s) along the route`;
-            disasterAlerts.appendChild(alert);
-        }
-        
-        // Show route info
-        document.getElementById('route-info').style.display = 'block';
-        // Show visibility controls
-        document.getElementById('visibility-controls').style.display = 'block';
-        // REMOVED: Show vessel controls
-        // document.getElementById('vessel-controls').style.display = 'block';
-        
-                // Draw route on map if coordinates are available
-        if (data.route.coordinates && data.route.coordinates.length > 0) {
-            const routeCoords = data.route.coordinates;
-            
-            // Add origin and destination ports to the route coordinates
-            const fullRouteCoords = [];
-            
-            // Add origin port as first point
-            if (data.origin && data.origin.lat && data.origin.lon) {
-                const [adjOriginLat, adjOriginLon] = getOptimalDisasterPosition(
-                    data.origin.lat, data.origin.lon, window.currentRouteBounds
-                );
-                fullRouteCoords.push([adjOriginLat, adjOriginLon]);
-            }
-            
-            // Add all route coordinates
-            fullRouteCoords.push(...routeCoords);
-            
-            // Add destination port as last point
-            if (data.destination && data.destination.lat && data.destination.lon) {
-                const [adjDestLat, adjDestLon] = getOptimalDisasterPosition(
-                    data.destination.lat, data.destination.lon, window.currentRouteBounds
-                );
-                fullRouteCoords.push([adjDestLat, adjDestLon]);
-            }
-            
-            routeLayer = L.polyline(fullRouteCoords, {
-                color: '#0066ff',
-                weight: 4,
-                opacity: 0.8,
-                lineCap: 'round',
-                lineJoin: 'round'
-            }).addTo(map);
-            
-            // Fit map to show the entire route with ports
-            map.fitBounds(routeLayer.getBounds(), {padding: [20, 20]});
-            
-            // Store route bounds for disaster positioning
-            window.currentRouteBounds = routeLayer.getBounds();
-        }
-        
-        // Add origin and destination markers with proper icons
-        if (data.origin && data.origin.lat && data.origin.lon) {
-            const [adjOriginLat, adjOriginLon] = getOptimalDisasterPosition(
-                data.origin.lat, data.origin.lon, window.currentRouteBounds
-            );
-            
-            const originIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
-            
-            const originMarker = L.marker([adjOriginLat, adjOriginLon], {icon: originIcon})
-                .addTo(map)
-                .bindPopup(createPortPopup({
-                    name: data.origin.name,
-                    code: data.origin.port_code || data.origin.code,
-                    harbor_size: data.origin.harbor_size,
-                    harbor_type: data.origin.harbor_type,
-                    lat: data.origin.lat,
-                    lon: data.origin.lon
-                }, true));
-            
-            portMarkers.push(originMarker);
-        }
-        
-        if (data.destination && data.destination.lat && data.destination.lon) {
-            const [adjDestLat, adjDestLon] = getOptimalDisasterPosition(
-                data.destination.lat, data.destination.lon, window.currentRouteBounds
-            );
-            
-            const destIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
-            
-            const destMarker = L.marker([adjDestLat, adjDestLon], {icon: destIcon})
-                .addTo(map)
-                .bindPopup(createPortPopup({
-                    name: data.destination.name,
-                    code: data.destination.port_code || data.destination.code,
-                    harbor_size: data.destination.harbor_size,
-                    harbor_type: data.destination.harbor_type,
-                    lat: data.destination.lat,
-                    lon: data.destination.lon
-                }, false));
-            
-            portMarkers.push(destMarker);
-        }
-        
-        // Add all disaster markers with route bounds context
-        if (data.origin && data.origin.disasters) {
-            addDisasterMarkers(data.origin.disasters, window.currentRouteBounds);
-        }
-        if (data.destination && data.destination.disasters) {
-            addDisasterMarkers(data.destination.disasters, window.currentRouteBounds);
-        }
-        if (data.route && data.route.disasters) {
-            addDisasterMarkers(data.route.disasters, window.currentRouteBounds);
-        }
-        
-        // Add ship markers if available (DISASTER AREA SHIPS - KEEP)
-        if (data.ships) {
-            addShipMarkers(data.ships, window.currentRouteBounds);
-        }
-        
-        displayCongestionAlerts(data.origin, data.destination);
-        addCongestedPortShips(data.origin, data.destination);
-        
-        if (data.eca_mpa_data) {
-            addEcaMpaAreas(data.eca_mpa_data);
-
-            // Add alert for ECA/MPA intersections
-            const disasterAlerts = document.getElementById('disaster-alerts');
-            const alert = document.createElement('div');
-            alert.className = 'alert-box';
-            alert.style.backgroundColor = '#fff3cd';
-            alert.style.borderLeftColor = '#ffc107';
-            alert.style.color = '#856404';
-            alert.innerHTML = `<strong>ECA/MPA Alert!</strong> Route passes through regulated environmental areas`;
-            disasterAlerts.appendChild(alert);
-        }
-
-        // Add piracy incidents if available
-        if (data.piracy && data.piracy.incidents && data.piracy.incidents.length > 0) {
-            addPiracyMarkers(data.piracy, window.currentRouteBounds);
-            
-            // Add piracy alert to sidebar
-            const alert = document.createElement('div');
-            alert.className = 'alert-box';
-            alert.style.backgroundColor = '#fff5f5';
-            alert.style.borderLeftColor = '#8B0000';
-            alert.style.color = '#721c24';
-            alert.innerHTML = `<strong><i class="fas fa-skull-crossbones"></i> Piracy Alert!</strong> ${data.piracy.incidents.length} incident(s) detected (last 5 months)`;
-            disasterAlerts.appendChild(alert);
-            
-            // Add current month summary
-            if (data.piracy.current_month_total > 0) {
-                const summaryAlert = document.createElement('div');
-                summaryAlert.className = 'alert-box';
-                summaryAlert.style.backgroundColor = '#fff5f5';
-                summaryAlert.style.borderLeftColor = '#8B0000';
-                summaryAlert.style.color = '#721c24';
-                summaryAlert.innerHTML = `<strong>Current Month Piracy:</strong> ${data.piracy.current_month_total} incident(s)`;
-                disasterAlerts.appendChild(summaryAlert);
-            }
-        }
-        // CHANGE TO:
-        if (data.route && data.route.chokepoints && data.route.chokepoints.length > 0) {
-            console.log(`Found ${data.route.chokepoints.length} chokepoints:`, data.route.chokepoints);
-            document.getElementById('view-chokepoints-btn').style.display = 'block';
-            window.currentChokepoints = data.route.chokepoints;
+        // Set initial button state
+        if (legend.style.display === 'none') {
+            toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+            toggleButton.title = 'Show Legend';
         } else {
-            console.log('No chokepoints found in response');
-            document.getElementById('view-chokepoints-btn').style.display = 'none';
+            toggleButton.innerHTML = '<i class="fas fa-layer-group"></i>';
+            toggleButton.title = 'Hide Legend';
         }
         
-        // If no route coordinates but we have port coordinates, fit bounds to show both ports
-        if ((!data.route.coordinates || data.route.coordinates.length === 0) && 
-            data.origin && data.destination && data.origin.lat && data.origin.lon && 
-            data.destination.lat && data.destination.lon) {
-            
-            const bounds = L.latLngBounds([
-                [data.origin.lat, data.origin.lon],
-                [data.destination.lat, data.destination.lon]
-            ]);
-            map.fitBounds(bounds, {padding: [50, 50]});
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('loading').style.display = 'none';
-        alert('Failed to calculate route: ' + error.message);
-    });
-});
+        // Add click event listener to the button
+        toggleButton.addEventListener('click', toggleLegend);
+    }
+    
+    // Add event listeners for toggle controls
+    const disastersToggle = document.getElementById('toggle-disasters');
+    const congestionToggle = document.getElementById('toggle-congestion');
+    const protectedToggle = document.getElementById('toggle-protected');
+    
+    if (disastersToggle) {
+        disastersToggle.addEventListener('change', function() {
+            toggleLayerVisibility('disasters', this.checked);
+        });
+    }
 
-// Sidebar toggle functionality
-document.addEventListener("DOMContentLoaded", () => {
-    const sidebar = document.querySelector(".sidebar");
-    const closeBtn = document.getElementById("sidebar-close");
-    const openBtn = document.getElementById("sidebar-open");
+    if (congestionToggle) {
+        congestionToggle.addEventListener('change', function() {
+            toggleLayerVisibility('congestion', this.checked);
+        });
+    }
 
-    closeBtn.addEventListener("click", () => {
-        sidebar.classList.add("collapsed");
-        openBtn.style.display = 'block';
-        map.invalidateSize();
-    });
-
-    openBtn.addEventListener("click", () => {
-        sidebar.classList.remove("collapsed");
-        openBtn.style.display = 'none';
-        map.invalidateSize();
-    });
+    if (protectedToggle) {
+        protectedToggle.addEventListener('change', function() {
+            toggleLayerVisibility('protected', this.checked);
+        });
+    }
 });
