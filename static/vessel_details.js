@@ -24,14 +24,8 @@ function buildRoutePopup(vessel, type) {
         ? vessel.destinationName.replace(/_/g, ' ').trim()
         : 'Unknown';
 
-    // Determine color based on vessel type
-    const vesselType = vessel.vesselType || 'UNKNOWN';
-    let shipColor = '#2E7D32'; // Light green default
-    if (vesselType === 'TANKER') {
-        shipColor = '#FF9800'; // Orange for tankers
-    } else if (vesselType === 'CARGO_SHIP') {
-        shipColor = '#2196F3'; // Blue for cargo ships
-    }
+    // Determine color
+    const routeColor = type === 'completed' ? '#0066ff' : '#ff9900';
 
     if (type === 'completed') {
         const coveredKm = vessel.route_from_origin?.distance_km;
@@ -47,7 +41,7 @@ function buildRoutePopup(vessel, type) {
             ">
                 <div style="
                     padding: 10px 12px;
-                    background: ${shipColor};
+                    background: ${routeColor};
                     border-bottom: 1px solid #e2e8f0;
                     color: white;
                 ">
@@ -89,7 +83,7 @@ function buildRoutePopup(vessel, type) {
             ">
                 <div style="
                     padding: 10px 12px;
-                    background: ${shipColor};
+                    background: ${routeColor};
                     border-bottom: 1px solid #e2e8f0;
                     color: white;
                 ">
@@ -386,57 +380,120 @@ async function fetchWeather(lat, lon) {
 
 function formatRouteData(vessel) {
     let routeHTML = '';
-    
+
     // Distance covered from origin
     if (vessel.route_from_origin) {
         const distanceCovered = vessel.route_from_origin.distance_nm;
         routeHTML += `
             <div class="vessel-detail-row">
-                <span class="detail-label">Distance Covered</span>
-                <span class="detail-value">${distanceCovered.toFixed(2)} NM (${vessel.route_from_origin.distance_km.toFixed(2)} km)</span>
+                <span class="detail-label">
+                    Distance Covered
+                    <i class="fas fa-info-circle"></i>
+                    <span class="info-tooltip">Total distance traveled from the origin port</span>
+                </span>
+                <span class="detail-value">
+                    ${distanceCovered.toFixed(2)} NM (${vessel.route_from_origin.distance_km.toFixed(2)} km)
+                </span>
             </div>
         `;
     }
-    
+
     // Remaining distance or ETA
     if (vessel.remaining_route) {
         const remainingDistance = vessel.remaining_route.distance_nm;
         routeHTML += `
             <div class="vessel-detail-row">
-                <span class="detail-label">Remaining Distance</span>
-                <span class="detail-value">${remainingDistance.toFixed(2)} NM (${vessel.remaining_route.distance_km.toFixed(2)} km)</span>
+                <span class="detail-label">
+                    Remaining Distance
+                    <i class="fas fa-info-circle"></i>
+                    <span class="info-tooltip">Distance left to reach the destination</span>
+                </span>
+                <span class="detail-value">
+                    ${remainingDistance.toFixed(2)} NM (${vessel.remaining_route.distance_km.toFixed(2)} km)
+                </span>
             </div>
         `;
-    } else if (vessel.etaSecUtc || vessel.destinationName) {
-        if (vessel.etaSecUtc && vessel.etaSecUtc !== 'N/A') {
-            routeHTML += `
-                <div class="vessel-detail-row">
-                    <span class="detail-label">ETA</span>
-                    <span class="detail-value">${vessel.etaSecUtc}</span>
-                </div>
-            `;
-        }
+    } else if (vessel.etaSecUtc && vessel.etaSecUtc !== 'N/A') {
+        routeHTML += `
+            <div class="vessel-detail-row">
+                <span class="detail-label">
+                    ETA
+                    <i class="fas fa-info-circle"></i>
+                    <span class="info-tooltip">Estimated Time of Arrival at destination</span>
+                </span>
+                <span class="detail-value">${vessel.etaSecUtc}</span>
+            </div>
+        `;
     }
-    
+
     return routeHTML;
 }
 
+
 function formatVesselData(vessel) {
     const vesselName = vessel.boatName ? vessel.boatName.replace(/_/g, ' ').trim() : 'Unknown Vessel';
-
-    // Format destination with port name if available
-    let destination = 'Unknown';
-    if (vessel.destinationName) {
-        const destCode = vessel.destinationName.replace(/_/g, ' ').trim();
-        if (vessel.destinationPortName) {
-            destination = `${vessel.destinationPortName} (${destCode})`;
-        } else {
-            destination = destCode;
-        }
-    }
-
     const origin = vessel.originName || 'Unknown';
     const vesselType = vessel.vesselType ? vessel.vesselType.replace(/_/g, ' ').trim() : 'Unknown';
+    
+    // Prepare destination display text
+    let destinationHTML = '';
+    if (vessel.destinationName) {
+        const cleanDestName = vessel.destinationName.replace(/_/g, ' ').trim();
+        
+        // Build display text with port name if available
+        let destDisplayText = cleanDestName;
+        if (vessel.destinationPortName) {
+            destDisplayText = `${vessel.destinationPortName} (${cleanDestName})`;
+        }
+        
+        // Check if we have a matched port code
+        if (vessel.destinationPortCode) {
+            // Has match - clickable link to port details
+            destinationHTML = `
+                <div class="vessel-detail-row">
+                    <span class="detail-label">
+                        Destination
+                        <i class="fas fa-info-circle"></i>
+                        <span class="info-tooltip">Intended destination port</span>
+                    </span>
+                    <span class="detail-value">
+                        <a href="/port_details?port_code=${encodeURIComponent(vessel.destinationPortCode)}" 
+                           target="_blank" 
+                           class="port-link-tooltip"
+                           style="color: #4facfe; text-decoration: none; cursor: pointer;">
+                            ${destDisplayText}
+                            <i class="fas fa-external-link-alt" style="font-size: 12px; margin-left: 5px;"></i>
+                        </a>
+                    </span>
+                </div>
+            `;
+        } else {
+            // No match - use old goToPortDetails function (searches via API)
+            destinationHTML = `
+                <div class="vessel-detail-row">
+                    <span class="detail-label">
+                        Destination
+                        <i class="fas fa-info-circle"></i>
+                        <span class="info-tooltip">Intended destination port</span>
+                    </span>
+                    <span class="detail-value port-link-tooltip" style="color: #4facfe; cursor: pointer; text-decoration: underline;" onclick="goToPortDetails('${vessel.destinationName?.replace(/'/g, "\\'")}')">
+                        ${destDisplayText}
+                    </span>
+                </div>
+            `;
+        }
+    } else {
+        destinationHTML = `
+            <div class="vessel-detail-row">
+                <span class="detail-label">
+                    Destination
+                    <i class="fas fa-info-circle"></i>
+                    <span class="info-tooltip">Intended destination port</span>
+                </span>
+                <span class="detail-value">N/A</span>
+            </div>
+        `;
+    }
     
     // Basic info (always visible)
     const basicInfo = `
@@ -480,16 +537,7 @@ function formatVesselData(vessel) {
             </span>
             <span class="detail-value">${origin}</span>
         </div>
-        <div class="vessel-detail-row">
-            <span class="detail-label">
-                Destination
-                <i class="fas fa-info-circle"></i>
-                <span class="info-tooltip">Intended destination port</span>
-            </span>
-            <span class="detail-value port-link-tooltip" style="color: #4facfe; cursor: pointer; text-decoration: underline;" onclick="goToPortDetails('${vessel.destinationName?.replace(/'/g, "\\'")}')">
-                ${vessel.destinationName?.replace(/_/g, ' ') || 'N/A'}
-                </span>
-        </div>
+        ${destinationHTML}
         ${formatRouteData(vessel)}
         <div class="vessel-detail-row">
             <span class="detail-label">
@@ -517,7 +565,7 @@ function formatVesselData(vessel) {
         </div>
     `;
     
-    // Rest of the function remains the same...
+    // Additional info (collapsible)
     const additionalInfo = `
         <div class="vessel-detail-row">
             <span class="detail-label">
@@ -590,14 +638,6 @@ function formatVesselData(vessel) {
                 <span class="info-tooltip">Timestamp of last position report</span>
             </span>
             <span class="detail-value">${vessel.timeSecUtc || 'N/A'}</span>
-        </div>
-        <div class="vessel-detail-row">
-            <span class="detail-label">
-                ETA
-                <i class="fas fa-info-circle"></i>
-                <span class="info-tooltip">Estimated Time of Arrival at destination</span>
-            </span>
-            <span class="detail-value">${vessel.etaSecUtc || 'N/A'}</span>
         </div>
         <div class="vessel-detail-row">
             <span class="detail-label">
