@@ -613,11 +613,19 @@ function createWeatherSection(lat, lon) {
     return empty;
 }
 
-// Function to create piracy incident marker
 function createPiracyMarker(incident) {
+    // Calculate days since incident
+    const incidentDate = new Date(incident.date);
+    const now = new Date();
+    const daysDiff = Math.floor((now - incidentDate) / (1000 * 60 * 60 * 24));
+    const isRecent = daysDiff <= 10;
+    
+    // Set color based on recency
+    const iconColor = isRecent ? '#760a0a' : '#000000';
+    
     const piracyIcon = L.divIcon({
         className: 'piracy-icon',
-        html: `<i class="fas fa-skull-crossbones" style="color: #8B0000; font-size: 15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);"></i>`,
+        html: `<i class="fas fa-skull-crossbones" style="color: ${iconColor}; font-size: 15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);"></i>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
         popupAnchor: [0, -10]
@@ -625,9 +633,10 @@ function createPiracyMarker(incident) {
     
     const popupHtml = `
         <div style="font-family: Arial, sans-serif; min-width: 300px; max-width: 350px;">
-            <div style="background: linear-gradient(135deg, #8B0000 0%, #B22222 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
+            <div style="background: linear-gradient(135deg, ${isRecent ? '#8B0000' : '#666666'} 0%, ${isRecent ? '#B22222' : '#888888'} 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
                     <i class="fas fa-skull-crossbones"></i> Piracy Incident
+                    ${isRecent ? '<span style="background: #FF0000; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 8px;">RECENT</span>' : ''}
                 </h3>
             </div>
             
@@ -637,7 +646,7 @@ function createPiracyMarker(incident) {
                 </div>
                 <div>
                     <div style="font-weight: 600; color: #4a5568; font-size: 13px;">Date of Incident</div>
-                    <div style="color: #2d3748; font-size: 14px;">${incident.date}</div>
+                    <div style="color: #2d3748; font-size: 14px;">${incident.date} ${isRecent ? '<span style="color: #FF0000; font-weight: bold;">(Last 10 days)</span>' : ''}</div>
                 </div>
             </div>
             
@@ -675,7 +684,7 @@ function createPiracyMarker(incident) {
             </div>
             ` : ''}
             
-                <div style="margin-top: 12px; padding: 12px; background: #fff5f5; border-radius: 6px; border-left: 3px solid #8B0000;">
+            <div style="margin-top: 12px; padding: 12px; background: #fff5f5; border-radius: 6px; border-left: 3px solid #8B0000;">
                 <div style="font-weight: 600; color: #8B0000; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-file-alt"></i> Situation Report
                 </div>

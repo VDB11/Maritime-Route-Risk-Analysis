@@ -13,29 +13,58 @@ const map = L.map('map', {
     worldCopyJump: true
 });
 
-// Add base layers
+// Add base layers with optimizations
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
-    maxZoom: 19
+    maxZoom: 19,
+    keepBuffer: 2,
+    updateWhenIdle: true,
+    updateWhenZooming: false
 }).addTo(map);
 
 // Add multiple backup tile providers
 const tileLayers = {
     "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
+        maxZoom: 19,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
     }),
     "OpenSeaMap": L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
         attribution: 'Map data: &copy; OpenSeaMap contributors',
-        maxZoom: 18
+        maxZoom: 18,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
     }),
     "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri, Maxar, Earthstar Geographics',
-        maxZoom: 19
+        maxZoom: 19,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
     }),
     "CartoDB Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
-        maxZoom: 20
+        maxZoom: 20,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
+    }),
+    "CartoDB Voyager": L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
+        maxZoom: 20,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
+    }),
+    "Ocean Depth": L.tileLayer('https://tiles.arcgis.com/tiles/C8EMgrsFcRFL6LrL/arcgis/rest/services/GEBCO_basemap_NCEI/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'GEBCO, NOAA NCEI',
+        maxZoom: 13,
+        keepBuffer: 2,
+        updateWhenIdle: true,
+        updateWhenZooming: false
     })
 };
 

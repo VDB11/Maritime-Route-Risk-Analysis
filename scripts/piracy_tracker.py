@@ -12,7 +12,7 @@ class PiracyMonitor:
         try:
             data = requests.get(self.url, timeout=10).json()
             now = datetime.now(timezone.utc)
-            cutoff = now - timedelta(days=150)
+            cutoff = now - timedelta(days=90)
             
             for marker in data.get("markers", []):
                 fields = {f["name"]: f["value"] for f in marker.get("custom_field_data", [])}

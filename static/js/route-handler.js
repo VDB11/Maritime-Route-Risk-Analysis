@@ -219,8 +219,29 @@ document.getElementById('calculate-route').addEventListener('click', function() 
             alert.style.backgroundColor = '#fff5f5';
             alert.style.borderLeftColor = '#8B0000';
             alert.style.color = '#721c24';
-            alert.innerHTML = `<strong><i class="fas fa-skull-crossbones"></i> Piracy Alert!</strong> ${data.piracy.incidents.length} incident(s) detected (last 5 months)`;
+            // Count recent vs older incidents
+            const recentCount = data.piracy.incidents.filter(inc => {
+                const incidentDate = new Date(inc.date);
+                const now = new Date();
+                const daysDiff = Math.floor((now - incidentDate) / (1000 * 60 * 60 * 24));
+                return daysDiff <= 10;
+            }).length;
+
+            const olderCount = data.piracy.incidents.length - recentCount;
+
+            alert.innerHTML = `<strong><i class="fas fa-skull-crossbones"></i> Piracy Alert!</strong> ${data.piracy.incidents.length} incident(s) detected (last 3 months)`;
             disasterAlerts.appendChild(alert);
+
+            // Add separate alert for recent incidents
+            if (recentCount > 0) {
+                const recentAlert = document.createElement('div');
+                recentAlert.className = 'alert-box';
+                recentAlert.style.backgroundColor = '#ffebee';
+                recentAlert.style.borderLeftColor = '#c62828';
+                recentAlert.style.color = '#b71c1c';
+                recentAlert.innerHTML = `<strong><i class="fas fa-exclamation-triangle"></i> RECENT INCIDENTS!</strong> ${recentCount} incident(s) in the last 10 days`;
+                disasterAlerts.appendChild(recentAlert);
+            }
             
             // Add current month summary
             if (data.piracy.current_month_total > 0) {
