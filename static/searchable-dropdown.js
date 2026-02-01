@@ -70,6 +70,29 @@ class SearchableDropdown {
                 // Clear existing options except the first (placeholder)
                 $element.find('option:not(:first)').remove();
                 
+                // Sort data alphabetically by name/text
+                data.sort((a, b) => {
+                    let textA, textB;
+                    
+                    if (typeof a === 'string') {
+                        textA = a;
+                    } else if (a && typeof a === 'object') {
+                        textA = a.name || a.text || a.id || a.value || '';
+                    } else {
+                        textA = String(a);
+                    }
+                    
+                    if (typeof b === 'string') {
+                        textB = b;
+                    } else if (b && typeof b === 'object') {
+                        textB = b.name || b.text || b.id || b.value || '';
+                    } else {
+                        textB = String(b);
+                    }
+                    
+                    return textA.localeCompare(textB);
+                });
+                
                 // Add ALL options to dropdown
                 data.forEach(item => {
                     let text, value;

@@ -174,75 +174,47 @@ function createShipMarker(ship) {
                 <i class="fas fa-fingerprint"></i>
             </div>
             <div>
-                <div style="font-size: 11px; color: #666;">MMSI</div>
-                <div style="font-size: 13px; font-weight: 500;">${ship.mmsi || 'N/A'}</div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">MMSI</div>
+                <div style="color: #2d3748; font-size: 13px;">${ship.mmsi || 'N/A'}</div>
             </div>
         </div>
         
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #4CAF50; font-size: 12px; width: 20px;">
-                <i class="fas fa-tachometer-alt"></i>
-            </div>
-            <div>
-                <div style="font-size: 11px; color: #666;">Speed</div>
-                <div style="font-size: 13px; font-weight: 500;">${formattedSpeed}</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #FF9800; font-size: 12px; width: 20px;">
-                <i class="fas fa-compass"></i>
-            </div>
-            <div>
-                <div style="font-size: 11px; color: #666;">Bearing</div>
-                <div style="font-size: 13px; font-weight: 500;">${formattedBearing}</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #9C27B0; font-size: 12px; width: 20px;">
-                <i class="fas fa-anchor"></i>
-            </div>
-            <div>
-                <div style="font-size: 11px; color: #666;">Draught</div>
-                <div style="font-size: 13px; font-weight: 500;">${formattedDraught}</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #00BCD4; font-size: 12px; width: 20px;">
-                <i class="fas fa-ruler-combined"></i>
-            </div>
-            <div>
-                <div style="font-size: 11px; color: #666;">Dimensions (L×W)</div>
-                <div style="font-size: 13px; font-weight: 500;">${formattedDimensions}</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <div style="color: #F44336; font-size: 12px; width: 20px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
                 <i class="fas fa-map-marker-alt"></i>
             </div>
             <div>
-                <div style="font-size: 11px; color: #666;">Destination</div>
-                <div style="font-size: 13px; font-weight: 500;">${cleanDestination}</div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Destination</div>
+                <div style="color: #2d3748; font-size: 13px;">${cleanDestination}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-gauge-high"></i>
+            </div>
+            <div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Speed</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedSpeed}</div>
             </div>
         </div>
         
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
-            <div style="color: #607D8B; font-size: 12px; width: 20px;">
-                <i class="fas fa-map-pin"></i>
+            <div style="color: #2196F3; font-size: 12px; width: 20px;">
+                <i class="fas fa-ruler-combined"></i>
             </div>
             <div>
-                <div style="font-size: 11px; color: #666;">Position</div>
-                <div style="font-size: 13px; font-weight: 500;">${formattedPosition}</div>
+                <div style="font-weight: 600; color: #4a5568; font-size: 12px;">Dimensions</div>
+                <div style="color: #2d3748; font-size: 13px;">${formattedDimensions}</div>
             </div>
         </div>
     </div>
-    `;
-    
-    return L.marker([ship.point.latitude, ship.point.longitude], {icon: shipIcon})
+`;
+
+    const marker = L.marker([ship.point.latitude, ship.point.longitude], {icon: shipIcon})
         .bindPopup(popupHtml);
+
+    return marker;
 }
 
 // Function to create disaster markers with proper styling

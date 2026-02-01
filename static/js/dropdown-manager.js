@@ -54,28 +54,6 @@ function initializeSearchableDropdowns() {
 
     // Set up cascade behavior
     setupCascadingDropdowns();
-    // Auto-open next dropdown after selection
-    const dropdownOrder = [
-        '#origin-water-body',
-        '#origin-country',
-        '#origin-port',
-        '#dest-water-body',
-        '#dest-country',
-        '#dest-port'
-    ];
-
-    dropdownOrder.forEach(function(selector, index) {
-        $(selector).on('select2:select', function() {
-            const next = dropdownOrder[index + 1];
-            if (next && !$(next).prop('disabled')) {
-                setTimeout(function() {
-                    $(next).select2('open');
-                    const searchField = document.querySelector('.select2-search__field');
-                    if (searchField) searchField.focus();
-                }, 100);
-            }
-        });
-    });
 }
 
 function setupCascadingDropdowns() {
