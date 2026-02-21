@@ -398,7 +398,7 @@ function formatRouteData(vessel) {
         `;
     }
 
-    // Remaining distance or ETA
+    // Remaining distance
     if (vessel.remaining_route) {
         const remainingDistance = vessel.remaining_route.distance_nm;
         routeHTML += `
@@ -413,7 +413,9 @@ function formatRouteData(vessel) {
                 </span>
             </div>
         `;
-    } else if (vessel.etaSecUtc && vessel.etaSecUtc !== 'N/A') {
+    }
+
+    if (vessel.etaSecUtc && vessel.etaSecUtc !== 'N/A') {
         routeHTML += `
             <div class="vessel-detail-row">
                 <span class="detail-label">
