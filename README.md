@@ -1,3 +1,1 @@
 # Maritime Route Risk Analysis and Vessel Tracker
-
-# Project Starboard is IN PROGRESS...
